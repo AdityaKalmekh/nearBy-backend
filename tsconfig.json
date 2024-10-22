@@ -16,5 +16,5 @@
       "typeRoots": ["./node_modules/@types"] // Specify where TypeScript should look for type definitions
     },
     "include": ["src/**/*"],                 // Include all files in the "src" folder
-    "exclude": ["node_modules"]              // Exclude the "node_modules" folder
+    "exclude": ["node_modules","dist"]              // Exclude the "node_modules" folder
 }
