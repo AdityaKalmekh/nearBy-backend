@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 export default function connectDB() {
-    
+   
     try {
-        mongoose.connect(`${process.env.MONGODB_URL}`);
+        mongoose.connect(`${process.env.MONGODB_URI}`);
     } catch (err) {
         console.log(err);
         process.exit(1);
