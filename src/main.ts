@@ -14,7 +14,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin : `${process.env.CORS_ORIGIN}`,
+    origin : "https://nearby-frontend-psi.vercel.app",
     credentials: true
 }));
 app.use(bodyParser.json());
