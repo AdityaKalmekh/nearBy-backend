@@ -7,10 +7,8 @@ export default async function connectDB() {
         serverSelectionTimeoutMS: 10000, // Timeout after 5s instead of 30s
         socketTimeoutMS: 45000, // Close sockets after 45s
         family: 4 ,// Use IPv4, skip trying IPv6
-        ssl: true,
         retryWrites: true,
-        W: 'majority',
-        directConnection: true
+        W: 'majority'
     };
     try {
        await mongoose.connect(`${process.env.MONGODB_URI}`,options);
