@@ -38,25 +38,4 @@ app.get('/api/health', (req: Request, res: Response) => {
 // Error handler
 app.use(errorHandler);
 
-// Start Server
-const PORT = process.env.PORT || 3000;
-
-const startServer = async () => {
-    try {
-        await connectDB();
-        app.listen(PORT, () => {
-            console.info(`
-              🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}
-              👉 http://localhost:${PORT}
-            `);
-        });
-    } catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
-    }
-}
-
-startServer().catch((error) => {
-    console.error('❌ Error:', error);
-    process.exit(1);
-});
+export default app;
