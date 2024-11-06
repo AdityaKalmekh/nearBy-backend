@@ -36,7 +36,6 @@ export default async function connectDB() {
             maxPoolSize: 10,
             minPoolSize: 5,
             socketTimeoutMS: 45000, // Close sockets after 45s
-            connectTimeoutMS: 10000,
             family: 4,// Use IPv4, skip trying IPv6
             retryWrites: true,
             W: 'majority'
