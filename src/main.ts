@@ -24,20 +24,42 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-connectDB()
-    .then(() => {
-        console.log('✅ MongoDB connected successfully');
-    })
-    .catch((error) => {
-        console.error('❌ MongoDB connection error:', error);
-    });
+// Connect to MongoDB
+let dbConnection: any = null;
+(async () => {
+    try {
+        dbConnection = await connectDB();
+        console.log('Initial DB connection attempt completed');
+    } catch (error) {
+        console.error('Initial DB connection failed:', error);
+    }
+})();
 
+// Health check endpoint
+app.get('/', async (req: Request, res: Response) => {
+    const dbStatus = mongoose.connection.readyState;
+    const statusText = {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting',
+        99: 'uninitialized'
+    }[dbStatus] || 'unknown';
 
-// Base url
-app.get('/', (req, res) => {
+    // Try reconnecting if disconnected
+    if (dbStatus !== 1) {
+        try {
+            console.log('Attempting to reconnect to MongoDB...');
+            dbConnection = await connectDB();
+        } catch (error) {
+            console.error('Reconnection failed:', error);
+        }
+    }
+
     res.json({
         status: 'Server is running',
-        dbStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+        dbStatus: statusText,
+        timestamp: new Date().toISOString()
     });
 });
 
