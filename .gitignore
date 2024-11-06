@@ -1,8 +1,11 @@
 # compiled output
 dist
+build
 
 # dependencies
 node_modules
 
 .env
 .vercel
+.env.development
+.env.production

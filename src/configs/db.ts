@@ -2,12 +2,13 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 export default async function connectDB() {
-
     try {
         if (!process.env.MONGODB_URI) {
             console.error('MONGODB_URI is not defined');
             return null;
         }
+
+        console.log(`Attempting to connect to ${process.env.NODE_ENV} database...`);
 
         // Remove any existing connections
         if (mongoose.connections.length > 0) {
@@ -17,6 +18,19 @@ export default async function connectDB() {
             }
         }
 
+        mongoose.connection.on('connected', () => {
+            console.log('✅ MongoDB Connected:', mongoose.connection.host);
+        });
+
+        mongoose.connection.on('error', (err) => {
+            console.error('❌ MongoDB connection error:', err);
+        });
+
+        mongoose.connection.on('disconnected', () => {
+            console.log('⚠️ MongoDB disconnected');
+        });
+
+        // Connect to MongoDB
         const options = {
             serverSelectionTimeoutMS: 30000, // Timeout after 5s instead of 30s
             maxPoolSize: 10,
@@ -27,26 +41,15 @@ export default async function connectDB() {
             W: 'majority'
         };
 
-        console.log("Connecting to mongodb");
-
         const conn = await mongoose.connect(`${process.env.MONGODB_URI}`, options);
 
-        mongoose.connection.on('connected', () => {
-            console.log(`MongoDB Connected: ${conn.connection.host}`);
-        });
-
-        mongoose.connection.on('error', (err) => {
-            console.error('MongoDB connection error:', err);
-        });
-
-        mongoose.connection.on('disconnected', () => {
-            console.log('MongoDB disconnected');
-        });
+        //Test the connection
+        await mongoose.connection.db?.admin().ping();
+        console.log('🎉 Database connection test successful!');
 
         return conn;
-
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        console.error('❌ Database connection failed:', error);
         if (error instanceof Error) {
             console.error({
                 errorName: error.name,
@@ -55,5 +58,15 @@ export default async function connectDB() {
             });
         }
         return null;
+    } finally {
+        // Additional connection status check
+        const state = mongoose.connection.readyState;
+        const states = {
+            0: 'disconnected',
+            1: 'connected',
+            2: 'connecting',
+            3: 'disconnecting'
+        };
+        console.log('📊 Connection state:', states[state] || 'unknown');
     }
 }

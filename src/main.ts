@@ -1,9 +1,10 @@
+import loadEnv from "./configs/env";
+loadEnv();
+
 import express, { Request, Response } from "express";
 import cors from "cors"
 import bodyParser from "body-parser";
-import "dotenv/config";
 import connectDB from "./configs/db";
-import mongoose from "mongoose";
 
 // Import routes
 import AuthRoute from "./routes/auth.routes"
@@ -15,7 +16,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: "https://nearby-frontend-psi.vercel.app",
+    origin: `${process.env.CORS_ORIGIN}`,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
@@ -24,51 +25,18 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-let dbConnection: any = null;
-(async () => {
-    try {
-        dbConnection = await connectDB();
-        console.log('Initial DB connection attempt completed');
-    } catch (error) {
-        console.error('Initial DB connection failed:', error);
-    }
-})();
-
-// Health check endpoint
-app.get('/', async (req: Request, res: Response) => {
-    const dbStatus = mongoose.connection.readyState;
-    const statusText = {
-        0: 'disconnected',
-        1: 'connected',
-        2: 'connecting',
-        3: 'disconnecting',
-        99: 'uninitialized'
-    }[dbStatus] || 'unknown';
-
-    // Try reconnecting if disconnected
-    if (dbStatus !== 1) {
-        try {
-            console.log('Attempting to reconnect to MongoDB...');
-            dbConnection = await connectDB();
-        } catch (error) {
-            console.error('Reconnection failed:', error);
+connectDB()
+    .then((connection) => {
+        if (connection) {
+            console.log('✅ Database initialized successfully');
+        } else {
+            console.log('⚠️ Database initialization failed');
         }
-    }
-
-    res.json({
-        status: 'Server is running',
-        dbStatus: statusText,
-        timestamp: new Date().toISOString()
+    })
+    .catch((error) => {
+        console.error('❌ Unexpected error:', error);
     });
-});
 
-app.get('/api/health', (req: Request, res: Response) => {
-    res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString()
-    });
-});
 
 // API Routers
 app.use("/nearBy", AuthRoute);
@@ -80,5 +48,27 @@ app.use('*', (req: Request, res: Response) => {
 
 // Error handler
 app.use(errorHandler);
+
+// Start Server
+const PORT = process.env.PORT || 3000;
+
+const startServer = async () => {
+    try {
+        app.listen(PORT, () => {
+            console.info(`
+              🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}
+              👉 http://localhost:${PORT}
+            `);
+        });
+    } catch (error) {
+        console.error("Failed to start server:",error);
+        process.exit(1);
+    }
+}
+
+startServer().catch((error) =>{
+    console.error('❌ Error:', error);
+    process.exit(1);
+});
 
 export default app;
