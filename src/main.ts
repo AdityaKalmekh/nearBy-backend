@@ -20,6 +20,14 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+connectDB()
+    .then(() => {
+        console.log('✅ MongoDB connected successfully');
+    })
+    .catch((error) => {
+        console.error('❌ MongoDB connection error:', error);
+    });
+
 // API Routers
 app.use("/nearBy", AuthRoute);
 

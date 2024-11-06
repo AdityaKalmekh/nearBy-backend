@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 import "dotenv/config";
 
-export default function connectDB() {
+export default async function connectDB() {
    
     try {
-        mongoose.connect(`${process.env.MONGODB_URI}`);
+       await mongoose.connect(`${process.env.MONGODB_URI}`);
     } catch (err) {
         console.log(err);
         process.exit(1);
@@ -19,4 +19,6 @@ export default function connectDB() {
     dbConnection.on("error", (err) => {
         console.error(`Connection error: ${err}`);
     });
+
+    return dbConnection;
 }
