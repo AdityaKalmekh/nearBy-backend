@@ -19,7 +19,7 @@ const otpSchema = new mongoose.Schema<IOTP>(
         },
         type: {
             type: String,
-            enum: ['EMAIL', 'PHONE'],
+            enum: ['EMAIL', 'PHONENO'],
             required: true,
         },
         purpose: {

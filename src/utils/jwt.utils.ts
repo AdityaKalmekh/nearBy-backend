@@ -20,8 +20,8 @@ const generateToken = (user: IUser): string => {
     const payload: JWTPayload = {
         userId: user._id,
         email: user.email,
-        phone: user.phone,
-        role: user.role
+        phone: user.phoneNo,
+        role: user.roles[0]
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET, {

@@ -2,9 +2,9 @@ import { Types } from "mongoose";
 import mongoose from "mongoose";
 
 export enum UserRole {
-    Provider = 0,
-    ADMIN = 1,
-    Requester = 2
+    provider = 0,
+    requester = 1,
+    ADMIN = 2
 }
 
 export enum UserStatus {
@@ -19,12 +19,12 @@ export interface IUser {
     firstName?: string;
     lastName?: string;
     email?: string;
-    phone?: string;
-    role: UserRole;
+    phoneNo?: string;
+    roles: UserRole[];
     status: UserStatus;
     isVerified: boolean;
     verifiedEmail: boolean;
-    verifiedPhone: boolean;
+    verifiedPhoneNo: boolean;
     lastLogin?: Date;
     failedLoginAttempts: number;
     createdAt: Date;
@@ -32,6 +32,7 @@ export interface IUser {
 }
 
 export interface IUserMethods {
+    hasRole(role: UserRole) : boolean;
     isProvider(): boolean;
     isRequester(): boolean;
     getFullName(): string | undefined

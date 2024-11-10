@@ -11,13 +11,13 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
             lowercase: true,
             trim: true,
             validator: function (this: UserDocument, email: string): boolean {
-                if (!email && this.phone) return true;
+                if (!email && this.phoneNo) return true;
                 if (!email) return false;
                 return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
             },
             message: 'Invalid email format or email is required when phone is not provided'
         },
-        phone: {
+        phoneNo: {
             type: String,
             sparse: true,
             trim: true,
@@ -40,9 +40,15 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
             minLength: 2,
             maxLength: 50
         },
-        role: {
-            type: Number,
-            enum: Object.values(UserRole),
+        roles: {
+            type: [Number],
+            enum: Object.values(UserRole).filter(value => typeof value === 'number'),
+            validate : function(roles: UserRole[]): boolean {
+                // Ensure array is not empty and all values are valid
+                return roles.length > 0 && 
+                    roles.every(role => Object.values(UserRole).includes(role));
+            },
+            message: 'User must have at least one valid role'
         },
         status: {
             type: String,
@@ -52,7 +58,7 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
             type: Boolean,
             default: false
         },
-        verifiedPhone: {
+        verifiedPhoneNo: {
             type: Boolean,
             default: false
         },
@@ -69,12 +75,16 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
     }
 );
 
+userSchema.methods.hasRole = function(this: UserDocument, role: UserRole): boolean {
+    return this.roles.includes(role);
+};
+
 userSchema.methods.isProvider = function (this: UserDocument): boolean {
-    return this.role === UserRole.Provider;
+    return this.hasRole(UserRole.provider);
 }
 
 userSchema.methods.isRequester = function (this: UserDocument): boolean {
-    return this.role === UserRole.Requester
+    return this.hasRole(UserRole.requester);
 }
 
 userSchema.methods.getFullName = function (this: UserDocument): string | undefined {
@@ -92,19 +102,19 @@ userSchema.static('findByPhone', function (phone: string) {
     return this.findOne({ phone });
 });
 
-userSchema.static('createInitialUser', async function (identifier: { email?: string; phone?: string }) {
+userSchema.static('createInitialUser', async function (identifier: { email?: string; phoneNo?: string }) {
     return this.create({
         ...identifier,
         // status: UserStatus.INCOMPLETE,
         verifiedEmail: !!identifier.email,
-        verifiedPhone: !!identifier.phone
+        verifiedPhone: !!identifier.phoneNo
     });
 });
 
 // Middleware
 userSchema.pre('save', async function (this: UserDocument, next) {
 
-    if (!this.email && !this.phone) {
+    if (!this.email && !this.phoneNo) {
         throw new Error('Either email or phone is required');
     }
     // Update status if profile is completed
@@ -116,7 +126,7 @@ userSchema.pre('save', async function (this: UserDocument, next) {
 
 // Indexes
 userSchema.index({ email: 1 }, { sparse: true });
-userSchema.index({ phone: 1 }, { sparse: true });
+userSchema.index({ phoneNo: 1 }, { sparse: true });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: 1 });
 

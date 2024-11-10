@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export type OTPType = 'EMAIL' | 'PHONE';
+export type OTPType = 'EMAIL' | 'PHONENO';
 export type OTPPurpose = 'LOGIN'| 'SIGNUP';
 
 export interface IOTP {

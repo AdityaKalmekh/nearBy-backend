@@ -5,6 +5,7 @@ import express, { Request, Response } from "express";
 import cors from "cors"
 import bodyParser from "body-parser";
 import connectDB from "./configs/db";
+import cookieParser from "cookie-parser";
 
 // Import routes
 import AuthRoute from "./routes/auth.routes"
@@ -24,6 +25,7 @@ app.use(cors({
 //Body parser middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 connectDB()
     .then((connection) => {

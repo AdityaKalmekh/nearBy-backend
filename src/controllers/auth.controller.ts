@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import { User } from "../models/User";
 import { OTPService } from "../utils/otp.utils";
 import { UserStatus } from "../types/user.types";
-import { log } from "console";
 import { jwtService } from "../utils/jwt.utils";
+import { convertStringToUserRole } from "../utils/role.utils";
 
 interface AuthRequestBody {
     email?: string,
@@ -17,8 +17,8 @@ const isValidEmail = (email: string): boolean => {
 };
 
 // Helper function to validate phone
-const isValidPhone = (phone: string): boolean => {
-    return /^\d{10}$/.test(phone);
+const isValidPhone = (phoneNo: string): boolean => {
+    return /^\d{10}$/.test(phoneNo);
 };
 
 const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
@@ -39,19 +39,18 @@ const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
 
 export const initiateAuth = async (req: Request, res: Response) => {
     try {
-        const { email, phone, authType } = req.body;
-        log(authType);
-        log(phone);
-        log(email);
+        const { email, phoneNo, authType, role } = req.body;
+        const userRole = convertStringToUserRole(role);
+
         // Validate that we have either email or phone based on authType
-        if (authType === 'EMAIL' && !email) {
+        if (authType === 'Email' && !email) {
             return res.status(400).json({
                 success: false,
                 message: 'Email is required for email authentication'
             });
         }
 
-        if (authType === 'PHONE' && !phone) {
+        if (authType === 'PhoneNo' && !phoneNo) {
             return res.status(400).json({
                 success: false,
                 message: 'Phone number is required for phone authentication'
@@ -59,17 +58,17 @@ export const initiateAuth = async (req: Request, res: Response) => {
         }
 
         // Get the actual identifier value based on authType
-        const identifier = authType === 'EMAIL' ? email : phone;
+        const identifier = authType === 'Email' ? email : phoneNo;
 
         // Validate format
-        if (authType === 'EMAIL' && !isValidEmail(identifier!)) {
+        if (authType === 'Email' && !isValidEmail(identifier!)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid email format'
             });
         }
 
-        if (authType === 'PHONE' && !isValidPhone(identifier!)) {
+        if (authType === 'PhoneNo' && !isValidPhone(identifier!)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid phone format. Must be 10 digits'
@@ -78,7 +77,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
         // Check if user exists
         let user = await User.findOne(
-            authType === 'EMAIL' ? { email: identifier } : { phone: identifier }
+            authType === 'Email' ? { email: identifier } : { phoneNo: identifier }
         );
 
         const isNewUser = !user;
@@ -86,18 +85,18 @@ export const initiateAuth = async (req: Request, res: Response) => {
         // If new user, create a temporary user record 
         if (isNewUser) {
             user = await User.create({
-                [authType.toLowerCase()]: identifier,
+                [authType !== "Email" ? "phoneNo" : "email"]: identifier,
+                roles: [userRole],
                 status: UserStatus.PENDING,
                 [`verified${authType}`]: false
             });
         }
 
         // Generate OTP
-
         const otp = await OTPService.createOTP(
             user?._id,
             identifier!,
-            authType,
+            authType.toUpperCase(),
             isNewUser ? 'SIGNUP' : 'LOGIN'
         );
 
@@ -137,7 +136,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
         const { userId, otp, authType } = req.body;
-
+        
         if (!userId || !otp || !authType) {
             return res.status(400).json({
                 success: false,
@@ -173,6 +172,13 @@ export const verifyOTP = async (req: Request, res: Response) => {
         //Generate token
         const token = jwtService.generateToken(user);
 
+        res.cookie('JwtToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000
+        })
+
         res.json({
             success: true,
             message: 'OTP verified successfully',
@@ -180,14 +186,14 @@ export const verifyOTP = async (req: Request, res: Response) => {
             user: {
                 id: user._id,
                 email: user.email,
-                phone: user.phone,
+                phone: user.phoneNo,
                 status: user.status,
                 verifiedEmail: user.verifiedEmail,
-                verifiedPhone: user.verifiedPhone,
+                verifiedPhone: user.verifiedPhoneNo,
             }
         });
 
-    } catch (error:any) {
+    } catch (error: any) {
         console.error('Verify OTP error:', error);
         res.status(500).json({
             success: false,
