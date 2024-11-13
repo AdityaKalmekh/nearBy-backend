@@ -199,12 +199,15 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
         //Generate token
         const token = jwtService.generateToken(user, role);
+        console.log(token);
 
         res.cookie('JwtToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/',
+            domain: process.env.NODE_ENV === 'production' ? 'nearby-frontend-psi.vercel.app' : 'localhost'
         })
 
         res.json({
