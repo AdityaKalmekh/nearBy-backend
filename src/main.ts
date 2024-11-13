@@ -19,7 +19,7 @@ const app = express();
 app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
 //Body parser middleware
@@ -63,12 +63,12 @@ const startServer = async () => {
             `);
         });
     } catch (error) {
-        console.error("Failed to start server:",error);
+        console.error("Failed to start server:", error);
         process.exit(1);
     }
 }
 
-startServer().catch((error) =>{
+startServer().catch((error) => {
     console.error('❌ Error:', error);
     process.exit(1);
 });

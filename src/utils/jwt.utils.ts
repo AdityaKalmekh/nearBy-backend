@@ -9,10 +9,15 @@ interface JWTPayload {
     role: number;
 }
 
+interface AuthenticatedRequest extends Request {
+    user?: UserPayload
+}
+
+
 /**
  * Generates a JWT token for the user
  */
-const generateToken = (user: IUser): string => {
+const generateToken = (user: IUser, role: number): string => {
     if (!process.env.JWT_SECRET) {
         throw new Error('JWT_SECRET is not defined in environment variables');
     }
@@ -21,7 +26,7 @@ const generateToken = (user: IUser): string => {
         userId: user._id,
         email: user.email,
         phone: user.phoneNo,
-        role: user.roles[0]
+        role: role 
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET, {
@@ -55,10 +60,12 @@ const verifyToken = (token: string): JWTPayload => {
  * Auth middleware to protect routes
  */
 import { Request, Response, NextFunction } from 'express';
+import { UserPayload } from "../types/custom";
 
-const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
+        // const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
+        const token = req.cookies.JwtToken;
 
         if (!token) {
             return res.status(401).json({
@@ -71,10 +78,10 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
         const decoded = verifyToken(token);
 
         // Add user info to request object
-        // req.user = decoded;
+        req.user = decoded;
 
         next();
-    } catch (error:any) {
+    } catch (error: any) {
         return res.status(401).json({
             success: false,
             message: error.message || 'Authentication failed'

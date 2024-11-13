@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import { OTPService } from "../utils/otp.utils";
-import { UserStatus } from "../types/user.types";
+import { UserRole, UserStatus } from "../types/user.types";
 import { jwtService } from "../utils/jwt.utils";
 import { convertStringToUserRole } from "../utils/role.utils";
 
@@ -40,7 +40,25 @@ const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
 export const initiateAuth = async (req: Request, res: Response) => {
     try {
         const { email, phoneNo, authType, role } = req.body;
-        const userRole = convertStringToUserRole(role);
+
+        // Validate auth type
+        if (!['Email', 'PhoneNo'].includes(authType)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid authentication type'
+            });
+        }
+
+        // Validate role
+        let userRole: UserRole;
+        try {
+            userRole = convertStringToUserRole(role);
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user role'
+            });
+        }
 
         // Validate that we have either email or phone based on authType
         if (authType === 'Email' && !email) {
@@ -90,6 +108,15 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 status: UserStatus.PENDING,
                 [`verified${authType}`]: false
             });
+        } else {
+            const hasRole = user?.roles.includes(userRole);
+            if (!hasRole) {
+                await User.findByIdAndUpdate(
+                    user?.id,
+                    { $addToSet: { roles: userRole } },
+                    { new: true }
+                )
+            }
         }
 
         // Generate OTP
@@ -122,6 +149,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
             message: `OTP sent successfully to your ${authType.toLowerCase()}`,
             isNewUser,
             userId: user?._id,
+            role: userRole,
             ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
         });
     } catch (error) {
@@ -135,7 +163,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
-        const { userId, otp, authType } = req.body;
+        const { userId, otp, authType, role } = req.body;
         
         if (!userId || !otp || !authType) {
             return res.status(400).json({
@@ -170,7 +198,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         await user.save();
 
         //Generate token
-        const token = jwtService.generateToken(user);
+        const token = jwtService.generateToken(user, role);
 
         res.cookie('JwtToken', token, {
             httpOnly: true,
@@ -180,13 +208,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
         })
 
         res.json({
-            success: true,
+            success: 'success',
+            code: 200,
             message: 'OTP verified successfully',
-            token,
             user: {
                 id: user._id,
-                email: user.email,
-                phone: user.phoneNo,
                 status: user.status,
                 verifiedEmail: user.verifiedEmail,
                 verifiedPhone: user.verifiedPhoneNo,
@@ -195,6 +221,43 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
     } catch (error: any) {
         console.error('Verify OTP error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to verify OTP'
+        });
+    }
+}
+
+export const details = async (req: Request, res: Response) => {
+    try {
+        const { firstName, lastName } = req.body;
+        const userId = req.user?.userId;
+
+        const updateUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                firstName,
+                lastName,
+                status: UserStatus.ACTIVE
+            },
+            { new: true }
+        )
+
+        if (!updateUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'Failed to update profile'
+            })
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile details update successfully',
+            user: updateUser
+        })
+
+    } catch (error: any) {
+        console.error('Update details error:', error);
         res.status(500).json({
             success: false,
             message: error.message || 'Failed to verify OTP'
