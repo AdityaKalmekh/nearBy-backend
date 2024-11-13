@@ -207,7 +207,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
             sameSite: 'none',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
-            domain: process.env.NODE_ENV === 'production' ? 'nearby-frontend-psi.vercel.app' : 'localhost'
         })
 
         res.json({

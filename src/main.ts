@@ -20,7 +20,7 @@ app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
 //Body parser middleware
