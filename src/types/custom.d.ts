@@ -4,6 +4,7 @@ export interface UserPayload {
     userId: Types.ObjectId;
     email?: string;
     phone?: string;
+    role: number;
     iat?: number;
     exp?: number;
 }

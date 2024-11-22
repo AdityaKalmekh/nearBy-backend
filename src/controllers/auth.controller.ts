@@ -4,7 +4,6 @@ import { OTPService } from "../utils/otp.utils";
 import { UserRole, UserStatus } from "../types/user.types";
 import { jwtService } from "../utils/jwt.utils";
 import { convertStringToUserRole } from "../utils/role.utils";
-
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -182,29 +181,21 @@ export const verifyOTP = async (req: Request, res: Response) => {
         }
 
         // Verify OTP
-        const isValid = await OTPService.verifyOTP(userId, otp);
+        const isValid = await OTPService.verifyOTP(userId, otp, authType);
         if (!isValid) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid or expired OTP'
+                message: 'Error while verifying otp'
             });
         }
 
-        // Update user verification status
-        user[`verified${authType}`] = true;
-        // if (user.status === UserStatus.PENDING) {
-        //     user.status = UserStatus.INCOMPLETE;  // User needs to complete profile
-        // }
-        await user.save();
-
         //Generate token
         const token = jwtService.generateToken(user, role);
-        console.log(token);
-
+    
         res.cookie('JwtToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: 'none',
+            sameSite: process.env.NODE_ENV === "production" ? 'none': 'strict',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
         })
@@ -234,13 +225,14 @@ export const details = async (req: Request, res: Response) => {
     try {
         const { firstName, lastName } = req.body;
         const userId = req.user?.userId;
+        const role = req.user?.role;
 
         const updateUser = await User.findByIdAndUpdate(
             userId,
             {
-                firstName,
+                firstName, 
                 lastName,
-                status: UserStatus.ACTIVE
+                status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING,
             },
             { new: true }
         )

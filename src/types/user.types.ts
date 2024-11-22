@@ -11,7 +11,8 @@ export enum UserStatus {
     ACTIVE = 'active',
     INACTIVE = 'inactive',
     SUSPENDED = 'suspended',
-    PENDING = 'pending'
+    PENDING = 'pending',
+    SERVICE_DETAILS_PENDING = 'service_details_pending'
 }
 
 export interface IUser {

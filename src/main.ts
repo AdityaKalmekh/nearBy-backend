@@ -8,7 +8,8 @@ import connectDB from "./configs/db";
 import cookieParser from "cookie-parser";
 
 // Import routes
-import AuthRoute from "./routes/auth.routes"
+import AuthRoute from "./routes/auth.routes";
+import ProviderRoute from "./routes/provider.routes";
 
 // Error handler middleware
 import { errorHandler } from "./middlewares/error.middleware";
@@ -42,7 +43,7 @@ connectDB()
 
 
 // API Routers
-app.use("/nearBy", AuthRoute);
+app.use("/nearBy", AuthRoute, ProviderRoute);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {

@@ -1,6 +1,8 @@
 import { OTP } from "../models/Otp";
 import { OTPPurpose, OTPType } from "../types/otp.types";
 import { ObjectId } from "mongodb";
+import { IUser } from "../types/user.types";
+import { User } from "../models/User";
 
 // Constants
 const OTP_LENGTH: number = 4;
@@ -56,8 +58,10 @@ const createOTP = async (
  */
 const verifyOTP = async (
     userId: string,
-    otpInput: string
+    otpInput: string,
+    authType: string
 ): Promise<boolean> => {
+
     try {
         const otpDoc = await OTP.findOne({
             userId,
@@ -85,10 +89,14 @@ const verifyOTP = async (
             throw new Error('Invalid OTP');
         }
 
-        // Mark as verified
-        otpDoc.verified = true;
-        await otpDoc.save();
+        const updateData: Partial<IUser> = {
+            isVerified : true,
+           [`verified${authType}`] : true 
+        } 
 
+        await User.findByIdAndUpdate(userId, updateData);
+
+        await OTP.deleteOne({ _id: otpDoc._id});
         return true;
     } catch (error) {
         console.error('Error verifying OTP:', error);

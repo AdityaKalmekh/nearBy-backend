@@ -13,6 +13,12 @@ interface AuthenticatedRequest extends Request {
     user?: UserPayload
 }
 
+type AsyncFunction = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => Promise<any>;
+
 
 /**
  * Generates a JWT token for the user
@@ -90,22 +96,21 @@ const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: Ne
 };
 
 // Role-based authorization middleware
-const authorize = (...allowedRoles: number[]) => {
-    return (req: Request, res: Response, next: NextFunction) => {
-        // if (!req.user) {
-        //     return res.status(401).json({
-        //         success: false,
-        //         message: 'User not authenticated'
-        //     });
-        // }
+const authorize = (allowedRoles: number[]): AsyncFunction => {
+    return async(req: Request, res: Response, next: NextFunction): Promise<any> => {
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
 
-        // if (!allowedRoles.includes(req.user.role)) {
-        //     return res.status(403).json({
-        //         success: false,
-        //         message: 'Not authorized to access this resource'
-        //     });
-        // }
-
+        if (!allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to access this resource'
+            });
+        }
         next();
     };
 };

@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
             type: String,
             enum: Object.values(UserStatus),
         },
+        isVerified: {
+            type: Boolean,
+            default: false  
+        },
         verifiedEmail: {
             type: Boolean,
             default: false
