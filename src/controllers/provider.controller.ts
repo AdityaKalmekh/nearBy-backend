@@ -6,11 +6,11 @@ import { UserStatus } from "../types/user.types";
 
 export const createProvider = async (req: Request, res: Response) => {
     try {
-
         const providerData = req.body;
         const ProviderDetail = new Provider({
             userId: req.user?.userId,
-            services: providerData.selectedServices
+            services: providerData.selectedServices,
+            baseLocation: { ...providerData.locationDetails, type: 'Point', lastUpdated: new Date() }
         });
 
         const saveProvider = await ProviderDetail.save();
@@ -45,13 +45,7 @@ export const createProvider = async (req: Request, res: Response) => {
                     return res.status(201).json({
                         success: true,
                         message: 'Provider created successfully',
-                        data: {
-                            provider: saveProvider,
-                            location: saveLocation,
-                            user: {
-                                status: updateUser.status
-                            }
-                        }
+                        providerId: saveLocation.providerId
                     });
                 } catch (userUpdateError) {
                     await Provider.findByIdAndDelete(saveProvider._id);

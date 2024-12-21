@@ -4,6 +4,8 @@ import { OTPService } from "../utils/otp.utils";
 import { UserRole, UserStatus } from "../types/user.types";
 import { jwtService } from "../utils/jwt.utils";
 import { convertStringToUserRole } from "../utils/role.utils";
+import { Provider } from "../models/Provider";
+import { IProvider } from "../types/provider.types";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -50,6 +52,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
         // Validate role
         let userRole: UserRole;
+
         try {
             userRole = convertStringToUserRole(role);
         } catch (error) {
@@ -65,9 +68,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 success: false,
                 message: 'Email is required for email authentication'
             });
-        }
-
-        if (authType === 'PhoneNo' && !phoneNo) {
+        } else if (authType === 'PhoneNo' && !phoneNo) {
             return res.status(400).json({
                 success: false,
                 message: 'Phone number is required for phone authentication'
@@ -83,9 +84,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 success: false,
                 message: 'Invalid email format'
             });
-        }
-
-        if (authType === 'PhoneNo' && !isValidPhone(identifier!)) {
+        } else if (authType === 'PhoneNo' && !isValidPhone(identifier!)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid phone format. Must be 10 digits'
@@ -99,7 +98,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
         const isNewUser = !user;
 
-        // If new user, create a temporary user record 
+        // If new user, create a record 
         if (isNewUser) {
             user = await User.create({
                 [authType !== "Email" ? "phoneNo" : "email"]: identifier,
@@ -115,6 +114,23 @@ export const initiateAuth = async (req: Request, res: Response) => {
                     { $addToSet: { roles: userRole } },
                     { new: true }
                 )
+            }
+        }
+
+        // If it's not new and provider get providerId
+        let provider : IProvider | null = null;
+        if (userRole === 0 && !isNewUser) {
+            const userId = user?._id;
+            provider = await Provider.findOne(
+                { userId: userId }, 
+                { _id: 1 }  // Only return the _id field
+            );
+
+            if (!provider){
+                return res.status(404).json({
+                    success: false,
+                    message: 'Provider not found'
+                });
             }
         }
 
@@ -149,6 +165,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
             isNewUser,
             userId: user?._id,
             role: userRole,
+            ...(userRole === 0 && {providerId: provider?._id}),
             ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
         });
     } catch (error) {
@@ -163,7 +180,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
         const { userId, otp, authType, role } = req.body;
-        
+
         if (!userId || !otp || !authType) {
             return res.status(400).json({
                 success: false,
@@ -191,11 +208,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
         //Generate token
         const token = jwtService.generateToken(user, role);
-    
+
         res.cookie('JwtToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? 'none': 'strict',
+            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
         })
@@ -230,7 +247,7 @@ export const details = async (req: Request, res: Response) => {
         const updateUser = await User.findByIdAndUpdate(
             userId,
             {
-                firstName, 
+                firstName,
                 lastName,
                 status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING,
             },

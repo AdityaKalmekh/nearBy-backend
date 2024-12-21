@@ -17,7 +17,7 @@ const ProviderSchema = new Schema<IProvider>(
             //     ref: 'Service',
             //     required: true
             // },
-            serviceType: { type: String, required: true},
+            serviceType: { type: String, required: true },
             visitingCharge: { type: Number, required: true }
         }],
         status: {
@@ -34,13 +34,22 @@ const ProviderSchema = new Schema<IProvider>(
             coordinates: {
                 type: [Number]
             },
+            source: {
+                type: String
+            },
+            accuracy: {
+                type: Number
+            },
+            lastUpdated: {
+                type: Date
+            },
             address: String,
-            city: { type: String, index: true},
+            city: { type: String, index: true },
             state: String,
             country: String,
             pincode: String
         },
-        rating : {
+        rating: {
             average: {
                 type: Number,
                 default: 0
@@ -61,5 +70,5 @@ const ProviderSchema = new Schema<IProvider>(
     }
 )
 
-ProviderSchema.index({ baseLocation: '2dsphere'});
+ProviderSchema.index({ baseLocation: '2dsphere' });
 export const Provider = mongoose.model<IProvider>("Provider", ProviderSchema);

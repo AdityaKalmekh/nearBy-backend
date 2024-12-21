@@ -7,6 +7,7 @@ export enum ProviderStatus {
 }
 
 export interface IProvider extends Document {
+    _id: Types.ObjectId,
     userId: Types.ObjectId,
     status: ProviderStatus,
     services: Array<{
@@ -22,6 +23,9 @@ export interface IProvider extends Document {
     baseLocation: {
         type: string,
         coordinates: number[],
+        source: string,
+        accuracy: number,
+        lastUpdated: Date,
         address: string,
         city: string,
         state: string,

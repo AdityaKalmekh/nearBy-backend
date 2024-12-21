@@ -1,17 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 
 export const errorHandler = (
-  err: Error,
+  err: Error & { code?: string },
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err.stack);
-
-  res.status(500).json({
-    success: false,
-    message: process.env.NODE_ENV === 'development' 
-      ? err.message 
-      : 'Something went wrong!'
-  });
+  
+  if (err.name === 'AppError') {
+    res.status(500).json({
+      success: false,
+      error: {
+        message: err.message,
+        code: err.code,
+        // details: process.env.NODE_ENV === 'development' ? err.details : undefined
+      }
+    });
+  }
+  // ... handle other errors
 };

@@ -21,7 +21,6 @@ const createOTP = async (
     identifier: string,
     type: OTPType,
     purpose: OTPPurpose,
-    // userId: mongoose.Types.ObjectId | undefined
 ): Promise<string> => {
     try {
         // Delete any existing OTP for this identifier
