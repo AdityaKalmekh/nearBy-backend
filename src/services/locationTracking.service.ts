@@ -90,7 +90,6 @@ const createLocationTrackingService = () => {
       }
 
       const distance = await calculateDistance(baseLocation, location);
-      console.log(distance);
 
       if (distance > 10) {
         throw createAppError(
@@ -150,7 +149,7 @@ const createLocationTrackingService = () => {
 
   const endShift = async (providerId: string) => {
     try {
-
+      
       if (!redis) {
         // throw new Error('Redis client not initialized');
         throw createAppError(

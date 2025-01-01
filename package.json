@@ -25,10 +25,13 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "geojson": "^0.5.0",
+    "http": "^0.0.1-security",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.10.0",
-    "mongoose": "^8.7.2"
+    "mongoose": "^8.7.2",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

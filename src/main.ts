@@ -7,16 +7,23 @@ import bodyParser from "body-parser";
 import connectDB from "./configs/db";
 import connectRedis, { disconnectRedis } from "./configs/redis";
 import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import { createSocketServer } from "./configs/socketServer";
 
 // Import routes
 import AuthRoute from "./routes/auth.routes";
 import ProviderRoute from "./routes/provider.routes";
 import ProviderLocation from "./routes/providerLocation.routes";
+import RequestRoute from "./routes/request.routes";
 
 // Error handler middleware
 import { errorHandler } from "./middlewares/error.middleware";
 
 const app = express();
+const httpServer = createServer(app); // create HTTP server
+
+// Initialize Socket.io
+export const socketServer = createSocketServer(httpServer);
 
 // Middleware
 app.use(cors({
@@ -56,7 +63,7 @@ async function initializeDatabases() {
 }
 
 // API Routers
-app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation);
+app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation, RequestRoute);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {
@@ -87,7 +94,7 @@ const startServer = async () => {
     try {
         await initializeDatabases();
 
-        app.listen(PORT, () => {
+        httpServer.listen(PORT, () => {
             console.info(`
               🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}
               👉 http://localhost:${PORT}

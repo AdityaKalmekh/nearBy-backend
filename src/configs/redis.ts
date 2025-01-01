@@ -7,8 +7,6 @@ export default async function connectRedis() {
         const options: RedisOptions = {
             host: process.env.REDIS_HOST,
             port: Number(process.env.REDIS_PORT),
-            username: process.env.REDIS_USERNAME || 'default',
-            password:  process.env.REDIS_PASSWORD,
             retryStrategy(times: number) {
                 if (times > 3) return null;
                 return Math.min(times * 100, 2000);
@@ -20,10 +18,10 @@ export default async function connectRedis() {
 
         // Add authentication only if password is provided
         // For production/cloud Redis, include both username and password
-        // if (process.env.NODE_ENV === 'production' && process.env.REDIS_PASSWORD) {
-        //     options.username = process.env.REDIS_USERNAME || 'default';
-        //     options.password = process.env.REDIS_PASSWORD;
-        // }
+        if (process.env.NODE_ENV === 'production' && process.env.REDIS_PASSWORD) {
+            options.username = process.env.REDIS_USERNAME || 'default';
+            options.password = process.env.REDIS_PASSWORD;
+        }
 
         // Close existing connection if any
         if (redisClient) {
