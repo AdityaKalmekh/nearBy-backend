@@ -13,8 +13,7 @@ export function createSocketServer(httpServer: HTTPServer) {
             methods: ["GET", "POST", "OPTIONS"],
             allowedHeaders: ["Content-Type", "Authorization"],
         },
-        transports: ['polling', 'websocket'],
-        allowEIO3: true,
+        transports: ['websocket', 'polling'],
         path: '/socket.io/'
     });
 

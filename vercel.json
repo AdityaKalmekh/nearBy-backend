@@ -14,8 +14,19 @@
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
         "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
-      }
+        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie",
+        "Content-Security-Policy": "default-src 'self'; connect-src 'self' wss: https://nearby-frontend-psi.vercel.app wss://nearby-backend.vercel.app ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+      },
+      "continue": true
+    },
+    {
+      "src": "/socket.io/[^/]+/websocket",
+      "dest": "src/main.ts",
+      "headers": {
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app"
+      },
+      "continue": true
     }, 
     {
       "src": "/nearBy/(.*)",
@@ -24,8 +35,7 @@
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
         "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie",
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live; connect-src 'self' wss: https://vercel.live; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';"
+        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
       }
     },
     {
@@ -35,8 +45,7 @@
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
         "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie",
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live; connect-src 'self' wss: https://vercel.live; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';"
+        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
       }
     }
   ],
