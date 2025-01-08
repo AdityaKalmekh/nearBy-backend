@@ -39,5 +39,9 @@
         "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live; connect-src 'self' wss: https://vercel.live; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';"
       }
     }
-  ]
+  ],
+  "regions": ["cdg1"],
+  "env": {
+    "CORS_ORIGIN": "https://nearby-frontend-psi.vercel.app"
+  }
 }
