@@ -14,43 +14,16 @@
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
         "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie",
-        "Content-Security-Policy": "default-src 'self'; connect-src 'self' wss: https://nearby-frontend-psi.vercel.app wss://nearby-backend.vercel.app ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+        "Access-Control-Allow-Headers": "*"
       },
       "continue": true
     },
     {
-      "src": "/socket.io/[^/]+/websocket",
-      "dest": "src/main.ts",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app"
-      },
-      "continue": true
-    }, 
-    {
-      "src": "/nearBy/(.*)",
-      "dest": "src/main.ts",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
-        "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
-      }
+      "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
-      "dest": "src/main.ts",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
-        "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
-      }
+      "src": "./(.*)",
+      "dest": "src/main.ts"
     }
-  ],
-  "regions": ["cdg1"],
-  "env": {
-    "CORS_ORIGIN": "https://nearby-frontend-psi.vercel.app"
-  }
+  ]
 }
