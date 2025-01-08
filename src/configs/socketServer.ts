@@ -14,11 +14,17 @@ export function createSocketServer(httpServer: HTTPServer) {
             allowedHeaders: ["Content-Type", "Authorization"],
         },
         transports: ['websocket', 'polling'],
-        path: '/socket.io/'
+        path: '/socket.io/',
+        pingTimeout: 60000,
+        pingInterval: 25000
     });
 
     function setupSocketConnections() {
         io.on('connection', (socket) => {
+            console.log('New connection:', socket.id);
+            
+            // Log transport type
+            console.log('Transport:', socket.conn.transport.name);
             socket.on('auth:user', (userId: string) => {
                 userSockets.set(userId, socket.id);
                 socket.join(`user:${userId}`);
@@ -37,6 +43,10 @@ export function createSocketServer(httpServer: HTTPServer) {
                 for (const [providerId, socketId] of providerSockets.entries()) {
                     if (socketId === socket.id) providerSockets.delete(providerId);
                 }
+            });
+
+            socket.on('error', (error) => {
+                console.error('Socket error:', error);
             });
         });
     }
