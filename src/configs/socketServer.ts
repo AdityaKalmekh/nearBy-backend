@@ -10,8 +10,11 @@ export function createSocketServer(httpServer: HTTPServer) {
         cors: {
             origin: `${process.env.CORS_ORIGIN}`,
             credentials: true,
-            methods: ["GET", "POST"]
-        }
+            methods: ["GET", "POST", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization"],
+        },
+        allowEIO3: true,
+        path: '/socket.io/'
     });
 
     function setupSocketConnections() {
