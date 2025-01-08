@@ -8,7 +8,8 @@ const providerSockets = new Map<string, string>();
 export function createSocketServer(httpServer: HTTPServer) {
     const io = new Server(httpServer, {
         cors: {
-            origin: "*",
+            origin: `${process.env.CORS_ORIGIN}`,
+            credentials: true,
             methods: ["GET", "POST"]
         }
     });
