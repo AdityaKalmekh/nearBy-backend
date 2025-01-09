@@ -8,15 +8,17 @@ const providerSockets = new Map<string, string>();
 export function createSocketServer(httpServer: HTTPServer) {
     const io = new Server(httpServer, {
         cors: {
-            origin: `${process.env.CORS_ORIGIN}`,
+            origin: `${process.env.CORS_ORIGIN}` || 'https://nearby-frontend-psi.vercel.app',
             credentials: true,
-            methods: ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"]
+            methods: ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization"]
         },
         path: '/socket.io/',
         transports: ['polling', 'websocket'],
         allowEIO3: true,
         pingTimeout: 60000,
-        pingInterval: 25000
+        pingInterval: 25000,
+        connectTimeout: 45000
     });
 
     function setupSocketConnections() {

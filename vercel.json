@@ -9,8 +9,15 @@
   "routes": [
     {
       "src": "/socket.io/(.*)",
-      "dest": "src/main.ts"
-    }, 
+      "dest": "src/main.ts",
+      "headers": {
+        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
+        "Access-Control-Allow-Credentials": "true"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
     {
       "src": "/nearBy/(.*)",
       "dest": "src/main.ts",
