@@ -10,8 +10,9 @@ export function createSocketServer(httpServer: HTTPServer) {
         cors: {
             origin: `${process.env.CORS_ORIGIN}`,
             credentials: true,
-            methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-            allowedHeaders: ["X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Content-Type", "Date", "X-Api-Version", "Authorization"],
+            methods: ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization"],
+            exposedHeaders: ["Access-Control-Allow-Origin"]
         },
         transports: ['polling', 'websocket'],
         path: '/socket.io/'
