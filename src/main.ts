@@ -29,6 +29,17 @@ app.get('/socket.io/', (req,res) => {
     res.send('Socket.IO endpoint');
 })
 
+app.get('/debug', (req, res) => {
+    res.json({
+        status: 'ok',
+        env: {
+            node_env: process.env.NODE_ENV,
+            cors_origin: process.env.CORS_ORIGIN
+        }
+    });
+});
+
+
 // Middleware
 app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,

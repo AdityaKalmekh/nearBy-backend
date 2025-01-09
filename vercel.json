@@ -9,16 +9,7 @@
   "routes": [
     {
       "src": "/socket.io/(.*)",
-      "dest": "src/main.ts",
-      "headers": {
-        "Access-Control-Allow-Origin": "https://nearby-frontend-psi.vercel.app",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Credentials": "true"
-      }
-    },
-    {
-      "handle" : "filesystem"
+      "dest": "src/main.ts"
     },
     {
       "src": "/nearBy/(.*)",
