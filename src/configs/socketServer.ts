@@ -14,7 +14,11 @@ export function createSocketServer(httpServer: HTTPServer) {
         },
         path: '/socket.io/',
         transports: ['polling'],
-        allowEIO3: true
+        allowEIO3: true,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        connectTimeout: 45000,
+        maxHttpBufferSize: 1e8
     });
 
     function setupSocketConnections() {
