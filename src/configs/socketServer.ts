@@ -10,15 +10,15 @@ export function createSocketServer(httpServer: HTTPServer) {
         cors: {
             origin: `${process.env.CORS_ORIGIN}` || 'https://nearby-frontend-psi.vercel.app',
             credentials: true,
-            methods: ["GET", "POST"]
+            methods: ["GET", "POST"],
+            allowedHeaders: ['Content-Type', 'Authorization']
         },
         path: '/socket.io/',
         transports: ['polling'],
         allowEIO3: true,
         pingTimeout: 60000,
         pingInterval: 25000,
-        connectTimeout: 45000,
-        maxHttpBufferSize: 1e8
+        connectTimeout: 45000
     });
 
     function setupSocketConnections() {
