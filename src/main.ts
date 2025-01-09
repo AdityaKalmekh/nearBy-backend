@@ -1,4 +1,4 @@
-
+const loadEnv = require("./configs/env").default;
 loadEnv();
 
 import express, { Request, Response } from "express";
