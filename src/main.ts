@@ -25,6 +25,10 @@ const httpServer = createServer(app); // create HTTP server
 // Initialize Socket.io
 export const socketServer = createSocketServer(httpServer);
 
+app.get('/socket.io/', (req,res) => {
+    res.send('Socket.IO endpoint');
+})
+
 // Middleware
 app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,
