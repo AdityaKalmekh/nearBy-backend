@@ -1,4 +1,4 @@
-import { loadEnv } from "./configs/env";
+
 loadEnv();
 
 import express, { Request, Response } from "express";
