@@ -9,8 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec ts-node ./src/main.ts",
     "start": "node dist/main.js",
-    "build": "tsc && cp -r src/configs/env.ts dist/configs/",
-    "postbuild": "ls -R dist/"
+    "build": "tsc && cp .env.* dist/",
+    "postbuild": "ls -la dist/"
   },
   "keywords": [],
   "author": "",
