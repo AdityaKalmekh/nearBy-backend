@@ -10,21 +10,17 @@ export function createSocketServer(httpServer: HTTPServer) {
         cors: {
             origin: `${process.env.CORS_ORIGIN}`,
             credentials: true,
-            methods: ["GET", "POST", "OPTIONS"],
-            allowedHeaders: ["*"],
+            methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+            allowedHeaders: ["X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Content-Type", "Date", "X-Api-Version", "Authorization"],
         },
         transports: ['polling', 'websocket'],
-        allowEIO3: true,
-        path: '/socket.io/',
-        pingTimeout: 60000,
-        pingInterval: 25000,
-        maxHttpBufferSize: 1e8
+        path: '/socket.io/'
     });
 
     function setupSocketConnections() {
         io.on('connection', (socket) => {
             console.log('New connection:', socket.id);
-            
+
             // Log transport type
             console.log('Transport:', socket.conn.transport.name);
             socket.on('auth:user', (userId: string) => {
