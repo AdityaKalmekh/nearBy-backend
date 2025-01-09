@@ -10,12 +10,13 @@ export function createSocketServer(httpServer: HTTPServer) {
         cors: {
             origin: `${process.env.CORS_ORIGIN}`,
             credentials: true,
-            methods: ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-            allowedHeaders: ["Content-Type", "Authorization"],
-            exposedHeaders: ["Access-Control-Allow-Origin"]
+            methods: ["GET", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"]
         },
+        path: '/socket.io/',
         transports: ['polling', 'websocket'],
-        path: '/socket.io/'
+        allowEIO3: true,
+        pingTimeout: 60000,
+        pingInterval: 25000
     });
 
     function setupSocketConnections() {
