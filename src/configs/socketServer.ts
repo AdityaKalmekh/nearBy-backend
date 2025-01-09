@@ -18,7 +18,8 @@ export function createSocketServer(httpServer: HTTPServer) {
         allowEIO3: true,
         pingTimeout: 60000,
         pingInterval: 25000,
-        connectTimeout: 45000
+        connectTimeout: 45000,
+        maxHttpBufferSize: 1e8
     });
 
     function setupSocketConnections() {
