@@ -1,6 +1,6 @@
 export const getOTPEmailTemplate = (otp: string): string => {
     return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #e2e4f5;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #000000;">
             <!-- Main Content -->
             <div style="background-color: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <h1 style="color: #000000; font-size: 32px; margin: 0 0 30px 0; font-weight: normal;">
@@ -31,10 +31,10 @@ export const getOTPEmailTemplate = (otp: string): string => {
 
             <!-- Footer -->
             <div style="text-align: center; padding-top: 20px;">
-                <p style="color: #666666; font-size: 14px; margin: 0 0 10px 0;">
+                <p style="color: #FFFFFF; font-size: 14px; margin: 0 0 10px 0;">
                     © ${new Date().getFullYear()} NearBy. All rights reserved.
                 </p>
-                <p style="color: #666666; font-size: 12px; margin: 0;">
+                <p style="color: #FFFFFF; font-size: 12px; margin: 0;">
                     This is an automated message, please do not reply to this email.
                 </p>
             </div>
