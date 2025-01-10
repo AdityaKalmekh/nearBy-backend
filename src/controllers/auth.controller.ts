@@ -6,6 +6,7 @@ import { jwtService } from "../utils/jwt.utils";
 import { convertStringToUserRole } from "../utils/role.utils";
 import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
+import { sendEmail } from "../services/email.service";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -142,10 +143,11 @@ export const initiateAuth = async (req: Request, res: Response) => {
             isNewUser ? 'SIGNUP' : 'LOGIN'
         );
 
+        
         // Send OTP based on authType
         try {
-            if (authType === 'EMAIL') {
-                // await sendEmail(identifier!, otp);
+            if (authType === 'Email') {
+                await sendEmail(identifier!, otp);
                 console.log('Email OTP', otp);
             } else {
                 // await sendSMS(identifier!, otp);

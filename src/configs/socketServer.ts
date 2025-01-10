@@ -24,10 +24,7 @@ export function createSocketServer(httpServer: HTTPServer) {
 
     function setupSocketConnections() {
         io.on('connection', (socket) => {
-            console.log('New connection:', socket.id);
 
-            // Log transport type
-            console.log('Transport:', socket.conn.transport.name);
             socket.on('auth:user', (userId: string) => {
                 userSockets.set(userId, socket.id);
                 socket.join(`user:${userId}`);

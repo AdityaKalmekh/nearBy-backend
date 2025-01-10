@@ -25,21 +25,6 @@ const httpServer = createServer(app); // create HTTP server
 // Initialize Socket.io
 export const socketServer = createSocketServer(httpServer);
 
-app.get('/socket.io/', (req,res) => {
-    res.send('Socket.IO endpoint');
-})
-
-app.get('/debug', (req, res) => {
-    res.json({
-        status: 'ok',
-        env: {
-            node_env: process.env.NODE_ENV,
-            cors_origin: process.env.CORS_ORIGIN
-        }
-    });
-});
-
-
 // Middleware
 app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,
