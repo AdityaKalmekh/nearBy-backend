@@ -46,11 +46,12 @@ export const createProvider = async (req: Request, res: Response) => {
                         ...JSON.parse(req.cookies.User_Data),
                         providerId: saveLocation.providerId,
                         status: UserStatus.ACTIVE,
-                        path: '/'
                     }), {
                         secure: process.env.NODE_ENV === "production",
                         sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
-                        maxAge: 24 * 60 * 60 * 1000
+                        maxAge: 24 * 60 * 60 * 1000,
+                        path: '/',
+                        httpOnly: true
                     });
 
                     return res.status(201).json({

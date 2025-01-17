@@ -262,7 +262,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             path: '/',
         });
 
-        res.cookie('User_Data', JSON.stringify({
+        const userData = JSON.stringify({
             userId: user._id,
             status: user.status,
             verifiedEmail: user.verifiedEmail,
@@ -272,12 +272,15 @@ export const verifyOTP = async (req: Request, res: Response) => {
             firstName: user.firstName,
             lastName: user.lastName,
             ...(role === 0 && { providerId }) 
-        }), {
+        });
+
+        res.cookie('User_Data', userData , {
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
-            path: '/'
-        })
+            path: '/',
+            httpOnly: true
+        });
 
         res.json({
             success: true,
@@ -328,7 +331,8 @@ export const details = async (req: Request, res: Response) => {
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
-            path: '/'
+            path: '/',
+            httpOnly: true
         });
 
         res.status(200).json({
