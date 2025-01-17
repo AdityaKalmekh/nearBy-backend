@@ -1,4 +1,4 @@
-export const getOTPEmailTemplate = (otp: string): string => {
+export const getOTPEmailTemplate = (otp: string, isNewUser: boolean, firstName: string | undefined): string => {
     return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #000000;">
             <!-- Main Content -->
@@ -7,7 +7,7 @@ export const getOTPEmailTemplate = (otp: string): string => {
                     Your <span style="background-color: #EDF2F7; padding: 2px 6px; border-radius: 4px;">NearBy</span> verification code
                 </h1>
                 
-                <p style="color: #000000; font-size: 18px; margin: 0 0 20px 0;">Hi Aditya,</p>
+                ${!isNewUser ? `<p style="color: #000000; font-size: 18px; margin: 0 0 20px 0;">Hi ${firstName},</p>`: ''}
                 
                 <p style="color: #000000; font-size: 18px; margin: 0 0 30px 0;">
                     To finish logging in to your <span style="background-color: #EDF2F7; padding: 2px 6px; border-radius: 4px;">NearBy</span> account, enter this verification code:

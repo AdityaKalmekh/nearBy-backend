@@ -57,7 +57,6 @@ const requestService = () => {
                     };
                 })
             );
-
             return enrichedProviders;
         } catch (error) {
             throw error;
@@ -166,6 +165,8 @@ const requestService = () => {
                 requestId
             }
 
+            console.log(nextProvider);
+            
             await notificationService().notifyProvider(nextProvider.providerId, 'new:request', requestData);
             setupTimeout(nextProvider.providerId, requestId, userId);
             return true;

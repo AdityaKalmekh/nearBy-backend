@@ -2,7 +2,7 @@ import { emailTransporter } from "../configs/email";
 import { getOTPEmailTemplate } from "../utils/emailTemplates";
 import { SendMailOptions } from "nodemailer";
 
-export const sendEmail = async (email: string, otp: string): Promise<void> => {
+export const sendEmail = async (email: string, otp: string, isNewUser: boolean, firstName: string | undefined): Promise<void> => {
     try {
         const mailOptions: SendMailOptions = {
             from: `"NearBy" <${process.env.EMAIL_USER}>`,
@@ -15,7 +15,7 @@ export const sendEmail = async (email: string, otp: string): Promise<void> => {
                 'X-Entity-Ref-ID': `nearby-otp-${Date.now()}` // Unique identifier for each email
             },
             text: `Your NearBy verification code is: ${otp}. This code will expire in 10 minutes.`,
-            html: getOTPEmailTemplate(otp)
+            html: getOTPEmailTemplate(otp,isNewUser,firstName)
         };
 
         await emailTransporter.sendMail(mailOptions);

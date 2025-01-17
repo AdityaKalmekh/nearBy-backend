@@ -71,7 +71,7 @@ import { UserPayload } from "../types/custom";
 const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
         // const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
-        const token = req.cookies.JwtToken;
+        const token = req.cookies.AuthToken;
 
         if (!token) {
             return res.status(401).json({

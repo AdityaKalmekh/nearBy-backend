@@ -107,27 +107,48 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 status: UserStatus.PENDING,
                 [`verified${authType}`]: false
             });
+
+            if (!user) {
+                return res.json({
+                    success: false,
+                    message: 'User not created'
+                })
+            }
         } else {
             const hasRole = user?.roles.includes(userRole);
             if (!hasRole) {
-                await User.findByIdAndUpdate(
+                user = await User.findByIdAndUpdate(
                     user?.id,
                     { $addToSet: { roles: userRole } },
                     { new: true }
                 )
+
+                if (!user) {
+                    return res.json({
+                        success: false,
+                        message: 'User role not updated'
+                    })
+                }
             }
         }
 
+        if (!user) {
+            return res.json({
+                success: false,
+                message: 'User Data not found'
+            })
+        }
+
         // If it's not new and provider get providerId
-        let provider : IProvider | null = null;
+        let provider: IProvider | null = null;
         if (userRole === 0 && !isNewUser) {
             const userId = user?._id;
             provider = await Provider.findOne(
-                { userId: userId }, 
+                { userId: userId },
                 { _id: 1 }  // Only return the _id field
             );
 
-            if (!provider){
+            if (!provider) {
                 return res.status(404).json({
                     success: false,
                     message: 'Provider not found'
@@ -143,11 +164,10 @@ export const initiateAuth = async (req: Request, res: Response) => {
             isNewUser ? 'SIGNUP' : 'LOGIN'
         );
 
-        
         // Send OTP based on authType
         try {
             if (authType === 'Email') {
-                await sendEmail(identifier!, otp);
+                await sendEmail(identifier!, otp, isNewUser, user.firstName);
                 console.log('Email OTP', otp);
             } else {
                 // await sendSMS(identifier!, otp);
@@ -161,13 +181,36 @@ export const initiateAuth = async (req: Request, res: Response) => {
             });
         }
 
+        res.cookie('t_auth_d', JSON.stringify({
+            userId: user._id,
+            firstName: user.firstName,
+            authType,
+            role,
+            isNewUser,
+            contactOrEmail: identifier
+        }), {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
+            maxAge: 5 * 60 * 1000, // Short expiry - 5 minutes
+            path: '/'
+        });
+
         res.json({
             success: true,
+            code: 200,
             message: `OTP sent successfully to your ${authType.toLowerCase()}`,
-            isNewUser,
-            userId: user?._id,
-            role: userRole,
-            ...(userRole === 0 && {providerId: provider?._id}),
+            user: {
+                userId: user._id,
+                status: user.status,
+                verifiedEmail: user.verifiedEmail,
+                verifiedPhone: user.verifiedPhoneNo,
+                authType,
+                role: userRole,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                ...(userRole === 0 && { providerId: provider?._id }),
+                isNewUser,
+            },
             ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
         });
     } catch (error) {
@@ -181,7 +224,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
-        const { userId, otp, authType, role } = req.body;
+        const { userId, otp, authType, role, providerId } = req.body;
 
         if (!userId || !otp || !authType) {
             return res.status(400).json({
@@ -208,27 +251,39 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
+        res.clearCookie('t_auth_d');
         //Generate token
         const token = jwtService.generateToken(user, role);
-
-        res.cookie('JwtToken', token, {
+        res.cookie('AuthToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
+        });
+
+        res.cookie('User_Data', JSON.stringify({
+            userId: user._id,
+            status: user.status,
+            verifiedEmail: user.verifiedEmail,
+            verifiedPhone: user.verifiedPhoneNo,
+            authType,
+            role,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            ...(role === 0 && { providerId }) 
+        }), {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
+            maxAge: 24 * 60 * 60 * 1000,
         })
 
         res.json({
-            success: 'success',
+            success: true,
             code: 200,
             message: 'OTP verified successfully',
-            user: {
-                id: user._id,
-                status: user.status,
-                verifiedEmail: user.verifiedEmail,
-                verifiedPhone: user.verifiedPhoneNo,
-            }
+            status: user.status,
+            role
         });
 
     } catch (error: any) {
@@ -263,10 +318,23 @@ export const details = async (req: Request, res: Response) => {
             })
         }
 
+        res.cookie('User_Data', JSON.stringify({
+            ...JSON.parse(req.cookies.User_Data),
+            firstName,
+            lastName,
+            status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
+        }),{
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
+            maxAge: 24 * 60 * 60 * 1000
+        });
+
         res.status(200).json({
             success: true,
             message: 'Profile details update successfully',
-            user: updateUser
+            firstName,
+            lastName,
+            role
         })
 
     } catch (error: any) {
