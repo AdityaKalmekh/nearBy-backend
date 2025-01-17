@@ -45,7 +45,8 @@ export const createProvider = async (req: Request, res: Response) => {
                     res.cookie('User_Data', JSON.stringify({
                         ...JSON.parse(req.cookies.User_Data),
                         providerId: saveLocation.providerId,
-                        status: UserStatus.ACTIVE
+                        status: UserStatus.ACTIVE,
+                        path: '/'
                     }), {
                         secure: process.env.NODE_ENV === "production",
                         sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
