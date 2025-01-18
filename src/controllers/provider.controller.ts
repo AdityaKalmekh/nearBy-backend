@@ -51,7 +51,7 @@ export const createProvider = async (req: Request, res: Response) => {
                         sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
                         maxAge: 24 * 60 * 60 * 1000,
                         path: '/',
-                        httpOnly: true
+                        httpOnly: false
                     });
 
                     return res.status(201).json({
