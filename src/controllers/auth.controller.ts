@@ -7,6 +7,7 @@ import { convertStringToUserRole } from "../utils/role.utils";
 import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
 import { sendEmail } from "../services/email.service";
+import { log } from "console";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -307,7 +308,11 @@ export const details = async (req: Request, res: Response) => {
         const { firstName, lastName } = req.body;
         const userId = req.user?.userId;
         const role = req.user?.role;
-
+        console.log("FirstName ",firstName);
+        console.log("LastName ", lastName);
+        console.log("UserId ", userId);
+        console.log("Role ", role);
+        
         const updateUser = await User.findByIdAndUpdate(
             userId,
             {
@@ -318,6 +323,7 @@ export const details = async (req: Request, res: Response) => {
             { new: true }
         )
 
+        console.log("Db result" , updateUser);
         if (!updateUser) {
             return res.status(404).json({
                 success: false,
