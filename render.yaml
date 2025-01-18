@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: nearby-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    headers:
+      - path: /*
+        headers:
+          - key: Access-Control-Allow-Credentials
+            value: "true"
+          - key: Access-Control-Allow-Origin
+            value: "https://nearby-frontend-psi.vercel.app"
+          - key: Access-Control-Expose-Headers
+            value: "Set-Cookie"
