@@ -257,7 +257,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         //Generate token
         const token = jwtService.generateToken(user, role);
         res.cookie('AuthToken', token, {
-            httpOnly: false,
+            httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
