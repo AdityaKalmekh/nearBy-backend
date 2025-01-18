@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { CookieOptions, Request, Response } from "express";
 import { User } from "../models/User";
 import { OTPService } from "../utils/otp.utils";
 import { UserRole, UserStatus } from "../types/user.types";
@@ -7,7 +7,6 @@ import { convertStringToUserRole } from "../utils/role.utils";
 import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
 import { sendEmail } from "../services/email.service";
-import { log } from "console";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -38,6 +37,19 @@ const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
     }
 
     return { isValid: true };
+};
+
+const cookieConfig: CookieOptions = {
+    httpOnly: false,
+    secure: true,
+    sameSite: 'none',
+    maxAge: 24 * 60 * 60 * 1000,
+    path: '/'
+};
+
+const secureCookieConfig: CookieOptions = {
+    ...cookieConfig,
+    httpOnly: true // For sensitive data like auth tokens
 };
 
 export const initiateAuth = async (req: Request, res: Response) => {
@@ -190,11 +202,8 @@ export const initiateAuth = async (req: Request, res: Response) => {
             isNewUser,
             contactOrEmail: identifier
         }), {
-            httpOnly:false,
-            secure: true,
-            sameSite: 'none',
-            maxAge: 5 * 60 * 1000, // Short expiry - 5 minutes
-            path: '/'
+            ...cookieConfig,
+            maxAge: 5 * 60 * 1000,
         });
 
         res.json({
@@ -266,24 +275,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
             role,
             firstName: user.firstName,
             lastName: user.lastName,
-            ...(role === 0 && { providerId }) 
+            ...(role === 0 && { providerId })
         });
 
-        res.cookie('AuthToken', token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none',
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-        });
-
-        res.cookie('User_Data', userData , {
-            httpOnly: false,
-            secure: true,
-            sameSite:  'none',
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-        });
+        res.cookie('AuthToken', token, secureCookieConfig);
+        res.cookie('User_Data', userData, cookieConfig);
 
         res.json({
             success: true,
@@ -307,7 +303,7 @@ export const details = async (req: Request, res: Response) => {
         const { firstName, lastName } = req.body;
         const userId = req.user?.userId;
         const role = req.user?.role;
-        
+
         const updateUser = await User.findByIdAndUpdate(
             userId,
             {
@@ -325,22 +321,27 @@ export const details = async (req: Request, res: Response) => {
             })
         }
 
-        console.log("User data cookies" , req.cookies.User_Data);
-        console.log("Auth token ", req.cookies.AuthToken);
+        // Add error handling for JSON parsing
+        let existingUserData: {};
+        try {
+            existingUserData = JSON.parse(req.cookies.User_Data || '{}');
+        } catch (error) {
+            console.error('Error parsing User_Data cookie:', error);
+            existingUserData = {};
+        }
 
-        res.cookie('User_Data', JSON.stringify({
-            ...JSON.parse(req.cookies.User_Data),
+        const updatedUserData = JSON.stringify({
+            ...existingUserData,
             firstName,
             lastName,
             status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
-        }),{
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-            httpOnly: false,
-            domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : 'localhost'
         });
+
+        console.log("User data cookies", req.cookies.User_Data);
+        console.log("Auth token ", req.cookies.AuthToken);
+        console.log("updatedUserData ",updatedUserData);
+        
+        res.cookie('User_Data', updatedUserData, cookieConfig);
 
         res.status(200).json({
             success: true,
