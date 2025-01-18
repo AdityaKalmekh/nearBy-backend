@@ -279,7 +279,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
         });
 
         res.cookie('AuthToken', token, secureCookieConfig);
-        res.cookie('User_Data', userData, cookieConfig);
+        // res.cookie('User_Data', userData, cookieConfig);
+
+        res.setHeader('Set-Cookie', [
+            `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
+        ]);
 
         console.log('After setting cookies ', res.getHeaders());
         res.json({

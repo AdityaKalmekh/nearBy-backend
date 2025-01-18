@@ -30,8 +30,16 @@ app.use(cors({
     origin: `${process.env.CORS_ORIGIN}`,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie']
 }));
+
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN);
+    res.header('Access-Control-Expose-Headers', 'Set-Cookie');
+    next();
+});
 
 //Body parser middleware
 app.use(bodyParser.json());
