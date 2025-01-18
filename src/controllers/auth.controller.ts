@@ -251,6 +251,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
+        console.log(req.cookies.t_auth_d);
         res.clearCookie('t_auth_d');
         //Generate token
         const token = jwtService.generateToken(user, role);
@@ -322,8 +323,12 @@ export const details = async (req: Request, res: Response) => {
             })
         }
 
+        console.log(decodeURIComponent(req.cookies.User_Data));
+        console.log(req.cookies.AuthToken);
+
+        
         res.cookie('User_Data', JSON.stringify({
-            ...JSON.parse(req.cookies.User_Data),
+            ...JSON.parse(decodeURIComponent(req.cookies.User_Data)),
             firstName,
             lastName,
             status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
