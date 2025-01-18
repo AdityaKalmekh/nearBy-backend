@@ -262,7 +262,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
-        console.log(req.cookies.t_auth_d);
         // res.clearCookie('t_auth_d');
         //Generate token
         const token = jwtService.generateToken(user, role);
@@ -279,11 +278,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
         });
 
         res.cookie('AuthToken', token, secureCookieConfig);
-        // res.cookie('User_Data', userData, cookieConfig);
+        res.cookie('User_Data', userData, cookieConfig);
 
-        res.setHeader('Set-Cookie', [
-            `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
-        ]);
+        // res.setHeader('Set-Cookie', [
+        //     `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
+        // ]);
 
         console.log('After setting cookies ', res.getHeaders());
         res.json({
@@ -319,6 +318,8 @@ export const details = async (req: Request, res: Response) => {
             { new: true }
         )
 
+        console.log("Error of update profile", updateUser);
+        
         if (!updateUser) {
             return res.status(404).json({
                 success: false,
@@ -342,10 +343,6 @@ export const details = async (req: Request, res: Response) => {
             status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
         });
 
-        console.log("User data cookies", req.cookies.User_Data);
-        console.log("Auth token ", req.cookies.AuthToken);
-        console.log("updatedUserData ",updatedUserData);
-        
         res.cookie('User_Data', updatedUserData, cookieConfig);
         
         res.status(200).json({
