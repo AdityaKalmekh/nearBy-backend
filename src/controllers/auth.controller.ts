@@ -262,7 +262,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             path: '/',
         });
 
-        const userData = JSON.stringify({
+        const userData = encodeURIComponent(JSON.stringify({
             userId: user._id,
             status: user.status,
             verifiedEmail: user.verifiedEmail,
@@ -272,7 +272,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             firstName: user.firstName,
             lastName: user.lastName,
             ...(role === 0 && { providerId }) 
-        });
+        }));
 
         res.cookie('User_Data', userData , {
             secure: process.env.NODE_ENV === 'production',
