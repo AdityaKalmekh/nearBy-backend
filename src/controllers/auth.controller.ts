@@ -263,7 +263,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         }
 
         console.log(req.cookies.t_auth_d);
-        res.clearCookie('t_auth_d');
+        // res.clearCookie('t_auth_d');
         //Generate token
         const token = jwtService.generateToken(user, role);
         const userData = JSON.stringify({
@@ -281,6 +281,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         res.cookie('AuthToken', token, secureCookieConfig);
         res.cookie('User_Data', userData, cookieConfig);
 
+        console.log('After setting cookies ', res.getHeaders());
         res.json({
             success: true,
             code: 200,
@@ -342,7 +343,7 @@ export const details = async (req: Request, res: Response) => {
         console.log("updatedUserData ",updatedUserData);
         
         res.cookie('User_Data', updatedUserData, cookieConfig);
-
+        
         res.status(200).json({
             success: true,
             message: 'Profile details update successfully',
