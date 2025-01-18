@@ -190,8 +190,9 @@ export const initiateAuth = async (req: Request, res: Response) => {
             isNewUser,
             contactOrEmail: identifier
         }), {
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
+            httpOnly:false,
+            secure: true,
+            sameSite: 'none',
             maxAge: 5 * 60 * 1000, // Short expiry - 5 minutes
             path: '/'
         });
@@ -256,14 +257,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
         res.clearCookie('t_auth_d');
         //Generate token
         const token = jwtService.generateToken(user, role);
-        res.cookie('AuthToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-        });
-
         const userData = JSON.stringify({
             userId: user._id,
             status: user.status,
@@ -276,12 +269,20 @@ export const verifyOTP = async (req: Request, res: Response) => {
             ...(role === 0 && { providerId }) 
         });
 
-        res.cookie('User_Data', userData , {
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        res.cookie('AuthToken', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
+        });
+
+        res.cookie('User_Data', userData , {
             httpOnly: false,
+            secure: true,
+            sameSite:  'none',
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/',
         });
 
         res.json({
@@ -306,10 +307,6 @@ export const details = async (req: Request, res: Response) => {
         const { firstName, lastName } = req.body;
         const userId = req.user?.userId;
         const role = req.user?.role;
-        console.log("FirstName ",firstName);
-        console.log("LastName ", lastName);
-        console.log("UserId ", userId);
-        console.log("Role ", role);
         
         const updateUser = await User.findByIdAndUpdate(
             userId,
@@ -321,7 +318,6 @@ export const details = async (req: Request, res: Response) => {
             { new: true }
         )
 
-        console.log("Db result" , updateUser);
         if (!updateUser) {
             return res.status(404).json({
                 success: false,

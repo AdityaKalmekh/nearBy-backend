@@ -52,7 +52,6 @@ export const createProvider = async (req: Request, res: Response) => {
                         maxAge: 24 * 60 * 60 * 1000,
                         path: '/',
                         httpOnly: false,
-                        domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : 'localhost'
                     });
 
                     return res.status(201).json({
