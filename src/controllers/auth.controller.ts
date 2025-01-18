@@ -262,7 +262,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
             sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
             maxAge: 24 * 60 * 60 * 1000,
             path: '/',
-            domain: process.env.NODE_ENV === 'production' ? '.onrender.com' : 'localhost'
         });
 
         const userData = JSON.stringify({
