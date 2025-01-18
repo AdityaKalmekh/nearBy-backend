@@ -263,7 +263,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             path: '/',
         });
 
-        const userData = encodeURIComponent(JSON.stringify({
+        const userData = JSON.stringify({
             userId: user._id,
             status: user.status,
             verifiedEmail: user.verifiedEmail,
@@ -273,7 +273,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             firstName: user.firstName,
             lastName: user.lastName,
             ...(role === 0 && { providerId }) 
-        }));
+        });
 
         res.cookie('User_Data', userData , {
             secure: process.env.NODE_ENV === 'production',
@@ -323,12 +323,11 @@ export const details = async (req: Request, res: Response) => {
             })
         }
 
-        console.log(decodeURIComponent(req.cookies.User_Data));
-        console.log(req.cookies.AuthToken);
+        console.log("User data cookies" , req.cookies.User_Data);
+        console.log("Auth token ", req.cookies.AuthToken);
 
-        
         res.cookie('User_Data', JSON.stringify({
-            ...JSON.parse(decodeURIComponent(req.cookies.User_Data)),
+            ...JSON.parse(req.cookies.User_Data),
             firstName,
             lastName,
             status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
