@@ -277,9 +277,12 @@ export const verifyOTP = async (req: Request, res: Response) => {
             ...(role === 0 && { providerId })
         });
 
-        res.cookie('AuthToken', token, secureCookieConfig);
-        res.cookie('User_Data', userData, cookieConfig);
-
+        // res.cookie('AuthToken', token, secureCookieConfig);
+        // res.cookie('User_Data', userData, cookieConfig);
+        res.setHeader('Set-Cookie', [
+            `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`,
+            `AuthToken=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
+        ])
         // res.setHeader('Set-Cookie', [
         //     `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
         // ]);
