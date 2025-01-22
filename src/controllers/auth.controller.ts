@@ -13,6 +13,12 @@ interface AuthRequestBody {
     authType: 'EMAIL' | 'PHONE';
 }
 
+interface Tokens {
+    authToken: string;
+    refreshToken: string;
+    sessionId: string;
+}
+
 // Helper function to validate email
 const isValidEmail = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -40,17 +46,19 @@ const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
 };
 
 const cookieConfig: CookieOptions = {
-    httpOnly: false,
-    secure: true,
-    sameSite: 'none',
-    maxAge: 24 * 60 * 60 * 1000,
-    path: '/'
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    maxAge: 2 * 60 * 1000 ,
+    path: '/',
 };
 
-const secureCookieConfig: CookieOptions = {
+const refreshCookieConfig: CookieOptions = {
     ...cookieConfig,
-    httpOnly: true // For sensitive data like auth tokens
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60
 };
+
 
 export const initiateAuth = async (req: Request, res: Response) => {
     try {
@@ -198,7 +206,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
             userId: user._id,
             firstName: user.firstName,
             authType,
-            role,
+            role: userRole,
             isNewUser,
             contactOrEmail: identifier
         }), {
@@ -262,9 +270,9 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
-        // res.clearCookie('t_auth_d');
+        res.clearCookie('t_auth_d');
         //Generate token
-        const token = jwtService.generateToken(user, role);
+        const responseToken: Tokens = await jwtService.generateTokens(user._id, user.status, role);
         const userData = JSON.stringify({
             userId: user._id,
             status: user.status,
@@ -277,23 +285,20 @@ export const verifyOTP = async (req: Request, res: Response) => {
             ...(role === 0 && { providerId })
         });
 
-        // res.cookie('AuthToken', token, secureCookieConfig);
-        // res.cookie('User_Data', userData, cookieConfig);
-        res.setHeader('Set-Cookie', [
-            `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`,
-            `AuthToken=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
-        ])
-        // res.setHeader('Set-Cookie', [
-        //     `User_Data=${userData}; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60 * 1000}`
-        // ]);
+        res.cookie('auth_token', responseToken.authToken, cookieConfig);
+        res.cookie('refresh_token', responseToken.refreshToken, refreshCookieConfig);
+        res.cookie('session_id', responseToken.sessionId, {
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+        });
 
-        console.log('After setting cookies ', res.getHeaders());
         res.json({
             success: true,
             code: 200,
             message: 'OTP verified successfully',
             status: user.status,
-            role
+            role,
+            authToken: responseToken.authToken
         });
 
     } catch (error: any) {
@@ -319,10 +324,8 @@ export const details = async (req: Request, res: Response) => {
                 status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING,
             },
             { new: true }
-        )
+        );
 
-        console.log("Error of update profile", updateUser);
-        
         if (!updateUser) {
             return res.status(404).json({
                 success: false,
@@ -347,7 +350,7 @@ export const details = async (req: Request, res: Response) => {
         });
 
         res.cookie('User_Data', updatedUserData, cookieConfig);
-        
+
         res.status(200).json({
             success: true,
             message: 'Profile details update successfully',
