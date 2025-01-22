@@ -35,7 +35,7 @@ const generateAuthToken = (userid: Types.ObjectId, status: string, role: number)
         role,
         tokenType: 'access',
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)
+        exp: Math.floor(Date.now() / 1000) + (60 * 60 * 1000)
     };
 
     return jwt.sign(payload, `${process.env.JWT_AUTH_SECRET}`);
@@ -164,7 +164,7 @@ const newAuthToken = async (refreshToken: string, res: Response) => {
     const { newAuthToken, decoded } = await refreshAuthToken(refreshToken);
 
     if (!newAuthToken || !decoded) {
-        throw createAppError("Failed to generate new token");
+        throw createAppError("Failed to generate new auth token");
     }
 
     // Set new auth token in cookie
@@ -172,7 +172,7 @@ const newAuthToken = async (refreshToken: string, res: Response) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        maxAge: 60 * 60 * 1000 // 1 hour
     });
 
     return decoded;
@@ -210,7 +210,7 @@ const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: Ne
         if (!session) {
             throw createAppError("Invalid session");
         }
-        console.log(authToken);
+
         // If no auth token exists, directly generate new one
         if (!authToken) {
             const decoded = await newAuthToken(refreshToken, res);
