@@ -25,8 +25,8 @@ type AsyncFunction = (
  * Generates a Authentication token for the user
  */
 const generateAuthToken = (userid: Types.ObjectId, status: string, role: number): string => {
-    if (!process.env.JWT_SECRET) {
-        throw new Error('JWT_SECRET is not defined in environment variables');
+    if (!process.env.JWT_AUTH_SECRET) {
+        throw createAppError("Jwt Auth Secret Key is not define");
     }
 
     const payload: JWTPayload = {
@@ -90,7 +90,7 @@ const generateTokens = async (userid: Types.ObjectId, status: string, role: numb
  */
 const verifyAuthToken = async (authToken: string): Promise<JWTPayload> => {
     if (!process.env.JWT_AUTH_SECRET) {
-        throw new Error('JWT_SECRET is not defined in environment variables');
+        throw createAppError('JWT AUTH SECRET is not defined in environment variables');
     }
 
     try {
@@ -131,7 +131,7 @@ const validateRefreshTokenInDB = async (refreshToken: string, userId: Types.Obje
 // Token refresh mechanism
 const refreshAuthToken = async (refreshToken: string) => {
     if (!process.env.JWT_REFRESH_SECRET) {
-        throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
+        throw createAppError('JWT_REFRESH_SECRET is not defined in environment variables');
     }
 
     try {
