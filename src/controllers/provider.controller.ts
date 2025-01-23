@@ -42,17 +42,17 @@ export const createProvider = async (req: Request, res: Response) => {
                         throw new Error('Failed to update user status');
                     }
 
-                    res.cookie('User_Data', JSON.stringify({
-                        ...JSON.parse(req.cookies.User_Data),
-                        providerId: saveLocation.providerId,
-                        status: UserStatus.ACTIVE,
-                    }), {
-                        secure: process.env.NODE_ENV === "production",
-                        sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
-                        maxAge: 24 * 60 * 60 * 1000,
-                        path: '/',
-                        httpOnly: false,
-                    });
+                    // res.cookie('User_Data', JSON.stringify({
+                    //     ...JSON.parse(req.cookies.User_Data),
+                    //     providerId: saveLocation.providerId,
+                    //     status: UserStatus.ACTIVE,
+                    // }), {
+                    //     secure: process.env.NODE_ENV === "production",
+                    //     sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
+                    //     maxAge: 24 * 60 * 60 * 1000,
+                    //     path: '/',
+                    //     httpOnly: false,
+                    // });
 
                     return res.status(201).json({
                         success: true,
