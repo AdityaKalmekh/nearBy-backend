@@ -283,8 +283,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
-        res.clearCookie('t_data_key');
-        res.clearCookie('initiate_d');
         res.clearCookie('t_data_key_c');
         res.clearCookie('initiate_d_c');
         //Generate token
@@ -314,7 +312,9 @@ export const verifyOTP = async (req: Request, res: Response) => {
             message: 'OTP verified successfully',
             status: user.status,
             role,
-            authToken: responseToken.authToken
+            authToken: responseToken.authToken,
+            refreshToken : responseToken.refreshToken,
+            session_id: responseToken.sessionId
         });
 
     } catch (error: any) {
@@ -350,22 +350,22 @@ export const details = async (req: Request, res: Response) => {
         }
 
         // Add error handling for JSON parsing
-        let existingUserData: {};
-        try {
-            existingUserData = JSON.parse(req.cookies.User_Data || '{}');
-        } catch (error) {
-            console.error('Error parsing User_Data cookie:', error);
-            existingUserData = {};
-        }
+        // let existingUserData: {};
+        // try {
+        //     existingUserData = JSON.parse(req.cookies.User_Data || '{}');
+        // } catch (error) {
+        //     console.error('Error parsing User_Data cookie:', error);
+        //     existingUserData = {};
+        // }
 
-        const updatedUserData = JSON.stringify({
-            ...existingUserData,
-            firstName,
-            lastName,
-            status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
-        });
+        // const updatedUserData = JSON.stringify({
+        //     ...existingUserData,
+        //     firstName,
+        //     lastName,
+        //     status: role === 1 ? UserStatus.ACTIVE : UserStatus.SERVICE_DETAILS_PENDING
+        // });
 
-        res.cookie('User_Data', updatedUserData, cookieConfig);
+        // res.cookie('User_Data', updatedUserData, cookieConfig);
 
         res.status(200).json({
             success: true,
