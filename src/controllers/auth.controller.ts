@@ -160,23 +160,6 @@ export const initiateAuth = async (req: Request, res: Response) => {
             })
         }
 
-        // If it's not new and provider get providerId
-        let provider: IProvider | null = null;
-        if (userRole === 0 && !isNewUser) {
-            const userId = user?._id;
-            provider = await Provider.findOne(
-                { userId: userId },
-                { _id: 1 }  // Only return the _id field
-            );
-
-            if (!provider) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Provider not found'
-                });
-            }
-        }
-
         // Generate OTP
         const otp = await OTPService.createOTP(
             user?._id,
@@ -228,7 +211,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
         //     maxAge: 10 * 60 * 1000,
         //     path: '/',
         // });
-        
+
         res.json({
             success: true,
             code: 200,
@@ -239,7 +222,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 role: userRole,
                 firstName: user.firstName,
                 isNewUser,
-                contactOrEmail:identifier
+                contactOrEmail: identifier
             },
             secretKey,
             encryptedData,
@@ -256,7 +239,7 @@ export const initiateAuth = async (req: Request, res: Response) => {
 
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
-        const { userId, otp, authType, role, providerId } = req.body;
+        const { userId, otp, authType, role, isNewUser } = req.body;
 
         if (!userId || !otp || !authType) {
             return res.status(400).json({
@@ -283,6 +266,23 @@ export const verifyOTP = async (req: Request, res: Response) => {
             });
         }
 
+        // If it's not new and provider get providerId
+        let provider: IProvider | null = null;
+        if (role === 0 && !isNewUser) {
+            const userId = user?._id;
+            provider = await Provider.findOne(
+                { userId: userId },
+                { _id: 1 }  // Only return the _id field
+            );
+
+            if (!provider) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Provider not found'
+                });
+            }
+        }
+
         res.clearCookie('t_data_key_c');
         res.clearCookie('initiate_d_c');
         //Generate token
@@ -296,7 +296,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             role,
             firstName: user.firstName,
             lastName: user.lastName,
-            ...(role === 0 && { providerId })
+            ...(role === 0 && provider?._id)
         });
 
         res.cookie('auth_token', responseToken.authToken, cookieConfig);
@@ -310,11 +310,18 @@ export const verifyOTP = async (req: Request, res: Response) => {
             success: true,
             code: 200,
             message: 'OTP verified successfully',
-            status: user.status,
-            role,
             authToken: responseToken.authToken,
-            refreshToken : responseToken.refreshToken,
-            session_id: responseToken.sessionId
+            refreshToken: responseToken.refreshToken,
+            session_id: responseToken.sessionId,
+            user: {
+                role,
+                status: user.status,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                fullName: `${user.firstName} ${user.lastName}`,
+                authType,
+                ...(role === 0 && { providerId: provider?._id })
+            }
         });
 
     } catch (error: any) {
