@@ -7,6 +7,7 @@ import { convertStringToUserRole } from "../utils/role.utils";
 import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
 import { sendEmail } from "../services/email.service";
+import { encryptUserData, generateSecureKey } from "../utils/dataEncrypt";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -49,7 +50,7 @@ const cookieConfig: CookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-    maxAge: 60 * 60 * 1000 ,
+    maxAge: 60 * 60 * 1000,
     path: '/',
 };
 
@@ -201,18 +202,33 @@ export const initiateAuth = async (req: Request, res: Response) => {
             });
         }
 
-        res.cookie('t_auth_d', JSON.stringify({
+        const data = {
             userId: user._id,
             firstName: user.firstName,
             authType,
             role: userRole,
             isNewUser,
             contactOrEmail: identifier
-        }), {
-            ...cookieConfig,
-            maxAge: 5 * 60 * 1000,
+        }
+        const secretKey = generateSecureKey();
+        const encrypedData = encryptUserData(data, secretKey);
+
+        res.cookie('t_data_key', JSON.stringify(secretKey), {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+            maxAge: 10 * 60 * 1000,
+            path: '/',
         });
 
+        res.cookie('initiate_d', JSON.stringify(encrypedData), {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+            maxAge: 10 * 60 * 1000,
+            path: '/',
+        });
+        
         res.json({
             success: true,
             code: 200,
