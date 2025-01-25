@@ -29,7 +29,7 @@ const otpSchema = new mongoose.Schema<IOTP>(
         },
         expiresAt: {
             type: Date,
-            required: true,
+            // required: true,
             index: { expires: 0 }
         },
         verified: {
@@ -39,6 +39,17 @@ const otpSchema = new mongoose.Schema<IOTP>(
         attemps: {
             type: Number,
             default: 0
+        },
+        resendCount: {
+            type: Number,
+            default: 0
+        },
+        lastResendAt: {
+            type: Date,
+            required: true
+        },
+        blockedUntil: {
+            type: Date
         }
     }, {
     timestamps: true

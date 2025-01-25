@@ -95,7 +95,6 @@ const verifyAuthToken = async (authToken: string): Promise<JWTPayload> => {
 
     try {
         const decoded = jwt.verify(authToken, process.env.JWT_AUTH_SECRET) as JWTPayload;
-        console.log("Token docoded ", decoded);
         return decoded;
     } catch (error) {
         throw error;

@@ -6,15 +6,12 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  
+
   if (err.name === 'AppError') {
     res.status(500).json({
       success: false,
-      error: {
-        message: err.message,
-        code: err.code,
-        // details: process.env.NODE_ENV === 'development' ? err.details : undefined
-      }
+      message: err.message,
+      code: err.code,
     });
   }
   // ... handle other errors

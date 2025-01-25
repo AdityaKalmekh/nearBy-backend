@@ -54,6 +54,11 @@ const cookieConfig: CookieOptions = {
     path: '/',
 };
 
+const initialDataConfig: CookieOptions = {
+    ...cookieConfig,
+    maxAge: 10 * 60 * 1000
+}
+
 const refreshCookieConfig: CookieOptions = {
     ...cookieConfig,
     httpOnly: true,
@@ -196,21 +201,8 @@ export const initiateAuth = async (req: Request, res: Response) => {
         const secretKey = generateSecureKey();
         const encryptedData = encryptUserData(data, secretKey);
 
-        // res.cookie('t_data_key', JSON.stringify(secretKey), {
-        //     httpOnly: false,
-        //     secure: process.env.NODE_ENV === 'production',
-        //     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        //     maxAge: 10 * 60 * 1000,
-        //     path: '/',
-        // });
-
-        // res.cookie('initiate_d', JSON.stringify(encryptedData), {
-        //     httpOnly: false,
-        //     secure: process.env.NODE_ENV === 'production',
-        //     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        //     maxAge: 10 * 60 * 1000,
-        //     path: '/',
-        // });
+        // res.cookie('t_data_key', JSON.stringify(secretKey), initialDataConfig);
+        // res.cookie('initiate_d', JSON.stringify(encryptedData), initialDataConfig);
 
         res.json({
             success: true,
@@ -222,18 +214,21 @@ export const initiateAuth = async (req: Request, res: Response) => {
                 role: userRole,
                 firstName: user.firstName,
                 isNewUser,
-                contactOrEmail: identifier
+                contactOrEmail: identifier,
+                status: user.status
             },
             secretKey,
             encryptedData,
             ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
         });
     } catch (error) {
-        console.error("Initiate Auth Error:", error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to initiate authentication'
-        })
+        // console.error("Initiate Auth Error:", error);
+        // res.status(500).json({
+        //     success: false,
+        //     message: 'Failed to initiate authentication'
+        // })
+        console.log(error);
+        throw error;
     }
 }
 
@@ -283,21 +278,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
             }
         }
 
-        res.clearCookie('t_data_key_c');
-        res.clearCookie('initiate_d_c');
+        // res.clearCookie('t_data_key_c');
+        // res.clearCookie('initiate_d_c');
         //Generate token
         const responseToken: Tokens = await jwtService.generateTokens(user._id, user.status, role);
-        const userData = JSON.stringify({
-            userId: user._id,
-            status: user.status,
-            verifiedEmail: user.verifiedEmail,
-            verifiedPhone: user.verifiedPhoneNo,
-            authType,
-            role,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            ...(role === 0 && provider?._id)
-        });
 
         res.cookie('auth_token', responseToken.authToken, cookieConfig);
         res.cookie('refresh_token', responseToken.refreshToken, refreshCookieConfig);
@@ -388,5 +372,36 @@ export const details = async (req: Request, res: Response) => {
             success: false,
             message: error.message || 'Failed to verify OTP'
         });
+    }
+}
+
+export const reSend = async (req: Request, res: Response) => {
+    try {
+        const { userId, authType, isNewUser, contactOrEmail, firstName } = req.body;
+        const purpose = isNewUser ? 'LOGIN' : 'SIGNUP';
+        const OTP = await OTPService.createOTP(
+            userId,
+            contactOrEmail,
+            authType.toUpperCase(),
+            purpose
+        );
+
+        if (authType === 'Email') {
+            await sendEmail(contactOrEmail!, OTP, isNewUser, firstName);
+            console.log('Email OTP', OTP);
+        } else {
+            console.log('Contact OTP', OTP);
+        }
+
+        return res.status(200).json({
+            success: true,
+            otp: OTP
+        });
+
+    } catch (error: any) {
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to generate resend OTP'
+        })
     }
 }

@@ -3,11 +3,14 @@ import { OTPPurpose, OTPType } from "../types/otp.types";
 import { ObjectId } from "mongodb";
 import { IUser } from "../types/user.types";
 import { User } from "../models/User";
+import { createAppError } from "../errors/errors";
 
 // Constants
 const OTP_LENGTH: number = 4;
 const OTP_EXPIRY_MINUTES: number = 10;
 const MAX_ATTEMPS: number = 3;
+const MAX_RESEND_ATTEMPTS: number = 2;
+const RESEND_COOLDOWN_MINUTES = 2;
 
 /**
  * Generates a random OTP of specified length
@@ -23,32 +26,59 @@ const createOTP = async (
     purpose: OTPPurpose,
 ): Promise<string> => {
     try {
-        // Delete any existing OTP for this identifier
-        await OTP.deleteMany({ userId });
+        const existingOTP = await OTP.findOne({ userId });
+
+        if (existingOTP) {
+
+            if (existingOTP.resendCount >= MAX_RESEND_ATTEMPTS) {
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + 1);
+
+                await OTP.findOneAndUpdate(
+                    { userId },
+                    { expiresAt } 
+                );
+
+                throw createAppError('Maximum resend attempts exceeded. Try again after sometime');
+            }
+        }
 
         // Generate new OTP
         const otp = generateOTP();
-
-        // Calculate expiry time
         const expiresAt = new Date();
         expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
 
-        // Create new OTP document
-        await OTP.create({
-            userId,
-            identifier,
-            otp,
-            type,
-            purpose,
-            expiresAt,
-            verified: false,
-            attempts: 0
-        });
+        if (existingOTP) {
+            await OTP.findOneAndUpdate(
+                { userId },
+                {
+                    otp,
+                    expiresAt,
+                    verified: false,
+                    attempts: 0,
+                    lastResendAt: new Date(),
+                    $inc: { resendCount: 1 }
+                }
+            );
+        } else {
+            // Create new OTP document
+            await OTP.create({
+                userId,
+                identifier,
+                otp,
+                type,
+                purpose,
+                expiresAt,
+                verified: false,
+                attempts: 0,
+                resendCount: 0,
+                lastResendAt: new Date()
+            });
+        }
 
         return otp;
     } catch (error) {
-        console.error('Error creating OTP:', error);
-        throw new Error('Failed to create OTP');
+        throw error;
     }
 };
 
@@ -89,13 +119,13 @@ const verifyOTP = async (
         }
 
         const updateData: Partial<IUser> = {
-            isVerified : true,
-           [`verified${authType}`] : true 
-        } 
+            isVerified: true,
+            [`verified${authType}`]: true
+        }
 
         await User.findByIdAndUpdate(userId, updateData);
 
-        await OTP.deleteOne({ _id: otpDoc._id});
+        await OTP.deleteOne({ _id: otpDoc._id });
         return true;
     } catch (error) {
         console.error('Error verifying OTP:', error);
