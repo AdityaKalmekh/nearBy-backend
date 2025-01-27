@@ -32,7 +32,7 @@ const createOTP = async (
 
             if (existingOTP.resendCount >= MAX_RESEND_ATTEMPTS) {
                 const expiresAt = new Date();
-                expiresAt.setDate(expiresAt.getDate() + 1);
+                expiresAt.setHours(expiresAt.getHours() + 24);
 
                 await OTP.findOneAndUpdate(
                     { userId },
