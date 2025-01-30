@@ -6,6 +6,9 @@ import { ServiceRequest } from "../models/ServiceRequest";
 import { ServiceStatus } from "../types/servicerequest.types";
 import { Provider } from "../models/Provider";
 import { User } from "../models/User";
+import { RequestOTP } from "../models/RequestOTP";
+import { IUser } from "../types/user.types";
+import { IRequestOTP } from "../types/requestOTP.types";
 
 const requestService = () => {
     const redis = getRedisClient();
@@ -17,6 +20,14 @@ const requestService = () => {
     interface RequesterLocation {
         longitude: number;
         latitude: number;
+    }
+
+    const generateOTP = (): string => {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+    }
+
+    const getExpiryTime = (): Date => {
+        return new Date(Date.now() + 60 * 60 * 1000);
     }
 
     const findNearbyProviders = async (requesterLocation: RequesterLocation) => {
@@ -113,7 +124,7 @@ const requestService = () => {
             providerId: p.providerId,
             distance: p.distance
         }));
-        
+
         if (providerQueue) {
             await Promise.all([
                 redis.set(
@@ -166,7 +177,7 @@ const requestService = () => {
             }
 
             console.log(nextProvider);
-            
+
             await notificationService().notifyProvider(nextProvider.providerId, 'new:request', requestData);
             setupTimeout(nextProvider.providerId, requestId, userId);
             return true;
@@ -197,14 +208,14 @@ const requestService = () => {
     };
 
     const handleNoProvidersAvailable = async (requestId: string) => {
-        const attempts = await redis.hget(`request:${requestId}`,'attempts');
-        
+        const attempts = await redis.hget(`request:${requestId}`, 'attempts');
+
         await Promise.all([
             // redis.hset(`request:${requestId}`, 'status', ServiceStatus.NO_PROVIDER),
             redis.multi()
-            .del(`request:${requestId}`)
-            .del(`request:${requestId}:provider_queue`)
-            .exec(),
+                .del(`request:${requestId}`)
+                .del(`request:${requestId}:provider_queue`)
+                .exec(),
             ServiceRequest.findByIdAndUpdate(requestId, {
                 status: ServiceStatus.NO_PROVIDER,
                 searchAttempts: attempts
@@ -230,30 +241,58 @@ const requestService = () => {
     };
 
     const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
-        const userDetails = await User.findById(userId)
-            .select("firstName lastName phoneNo -_id");
         
-        const attempts = await redis.hget(`request:${requestId}`,'attempts');
+        const [userDetails, attempts] = await Promise.all([
+            User.findById(userId).select("firstName lastName phoneNo -_id"),
+            redis.hget(`request:${requestId}`, 'attempts')
+        ]);
+
+        const otp = generateOTP();
+        const expiresAt = getExpiryTime();
+
+        const requestOTP = new RequestOTP({
+            serviceRequest: requestId,
+            provider: providerId,
+            requester: userId,
+            otp,
+            expiresAt
+        });
+
+        await requestOTP.save();
+
         await Promise.all([
+            // Update service request
+            ServiceRequest.findByIdAndUpdate(
+                requestId,
+                {
+                    status: ServiceStatus.ACCEPTED,
+                    provider: providerId,
+                    searchAttempts: attempts,
+                    otpGenerated: true 
+                }
+            ),
+
+            // Clean up Redis
             redis.multi()
                 .del(`request:${requestId}`)
                 .del(`request:${requestId}:timeout`)
                 .del(`request:${requestId}:provider_queue`)
                 .exec(),
-            ServiceRequest.findByIdAndUpdate(requestId, {
-                status: ServiceStatus.ACCEPTED,
-                provider: providerId,
-                searchAttempts: attempts
-            })
-        ]);
 
-        await notificationService().notifyProvider(providerId, 'request:accepted', {
-            firstName: userDetails?.firstName,
-            lastName: userDetails?.lastName,
-            phoneNo: userDetails?.phoneNo
-        })
+            // Send notifications
+            Promise.all([
+                notificationService().notifyProvider(providerId, 'request:accepted', {
+                    firstName: userDetails?.firstName,
+                    lastName: userDetails?.lastName,
+                    phoneNo: userDetails?.phoneNo
+                }),
+                notificationService().notifyRequester(userId, 'ACCEPTED', providerId)
+            ])
+        ]).catch(error => {
 
-        await notificationService().notifyRequester(userId, 'ACCEPTED', providerId);
+            console.error('Error in parallel operations:', error);
+            throw createAppError('Error in parallel operation of request acceptance')
+        });
     };
 
     const handleRejection = async (requestId: string, userId: string) => {
@@ -265,14 +304,32 @@ const requestService = () => {
     };
 
     const getProviderDetails = async (providerId: string) => {
-        const providerDetails = await Provider.findById(providerId)
-            .select('-_id -userId -__v -rating -completedServices -cancelledServices -baseLocation -status -services')
-            .populate('userId', 'firstName lastName phoneNo -_id')
-            .lean();
+        const [providerDetails, otpDetails] = await Promise.all([
+            Provider.findById(providerId)
+                .select('-_id -userId -__v -rating -completedServices -cancelledServices -baseLocation -status -services')
+                .populate<{ userId: IUser}>({
+                    path: 'userId',
+                    select: 'firstName lastName phoneNo -_id'
+                })
+                .lean(),
+            RequestOTP.findOne({
+                provider: providerId,
+                verified: false,
+                expiresAt: { $gt: new Date() }
+            })
+            .select<IRequestOTP>('otp')
+            .lean()
+        ]);
+
         if (!providerDetails) {
             throw createAppError("Provider Not found");
         }
-        return providerDetails.userId;
+        return {
+            firstName: providerDetails.userId.firstName,
+            lastName: providerDetails.userId.lastName,
+            phoneNo: providerDetails.userId.phoneNo,
+            otp: otpDetails?.otp
+        }
     }
 
     return {

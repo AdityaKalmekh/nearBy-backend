@@ -7,7 +7,7 @@ export interface RequestData {
     }>;
     latitude: number,
     longitude: number,
-    status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'NO_PROVIDER';
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'NO_PROVIDER' | 'INPROCESS';
     currentProvider?: string;
     attempts: number;
     createdAt: number;

@@ -33,7 +33,7 @@ export const createProvider = async (req: Request, res: Response) => {
                         req.user?.userId,
                         { status: UserStatus.ACTIVE },
                         { new: true }
-                    )
+                    );
 
                     if (!updateUser) {
                         // If user update fails, rollback previous operations

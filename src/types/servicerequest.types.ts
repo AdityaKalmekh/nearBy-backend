@@ -33,6 +33,7 @@ export interface IServiceRequest extends Document {
     }>;
     searchAttempts: number;
     estimatedDistance?: number;
+    otpVerified?: boolean;
     createdAt: Date;
     updatedAt: Date;
 }

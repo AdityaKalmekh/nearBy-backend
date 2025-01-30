@@ -54,7 +54,11 @@ const ServiceRequestSchema = new Schema<IServiceRequest>(
             type: Number,
             default: 0
         },
-        estimatedDistance: Number
+        estimatedDistance: Number,
+        otpVerified: {
+            type: Boolean,
+            default: false
+        }
     },
     {
         timestamps: true,
