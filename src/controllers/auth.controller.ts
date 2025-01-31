@@ -7,7 +7,7 @@ import { convertStringToUserRole } from "../utils/role.utils";
 import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
 import { sendEmail } from "../services/email.service";
-import { encryptUserData, generateSecureKey } from "../utils/dataEncrypt";
+import { encryptProviderId, encryptUserData, encryptUserId, generateSecureKey } from "../utils/dataEncrypt";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -64,6 +64,13 @@ const refreshCookieConfig: CookieOptions = {
     httpOnly: true,
     maxAge: 30 * 24 * 60 * 60
 };
+
+const userIdCookieConfig: CookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    maxAge: 30 * 24 * 60 * 60
+}
 
 export const initiateAuth = async (req: Request, res: Response) => {
     try {
@@ -235,6 +242,8 @@ export const initiateAuth = async (req: Request, res: Response) => {
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
         const { userId, otp, authType, role, isNewUser } = req.body;
+        let encryptedPId: string | undefined;
+        let encryptionPKey: string | undefined;
 
         if (!userId || !otp || !authType) {
             return res.status(400).json({
@@ -282,6 +291,15 @@ export const verifyOTP = async (req: Request, res: Response) => {
         // res.clearCookie('initiate_d_c');
         //Generate token
         const responseToken: Tokens = await jwtService.generateTokens(user._id, user.status, role);
+        const { encryptedUId, encryptionKey } = encryptUserId(user._id.toString());
+        if (role === 0 && provider) {
+            const encryptionResult = encryptProviderId(provider._id.toString());
+            encryptedPId = encryptionResult.encryptedPId;
+            encryptionPKey = encryptionResult.encryptionPKey;
+
+            res.cookie('puid', encryptedPId, userIdCookieConfig);
+            res.cookie('puidkey', encryptionPKey, userIdCookieConfig);
+        }
 
         res.cookie('auth_token', responseToken.authToken, cookieConfig);
         res.cookie('refresh_token', responseToken.refreshToken, refreshCookieConfig);
@@ -289,6 +307,8 @@ export const verifyOTP = async (req: Request, res: Response) => {
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
         });
+        res.cookie("uid", encryptedUId, userIdCookieConfig);
+        res.cookie("diukey", encryptionKey, userIdCookieConfig);
 
         res.json({
             success: true,
@@ -297,14 +317,19 @@ export const verifyOTP = async (req: Request, res: Response) => {
             authToken: responseToken.authToken,
             refreshToken: responseToken.refreshToken,
             session_id: responseToken.sessionId,
+            encryptedUId,
+            encryptionKey,
+            ...(role === 0 && { 
+                encryptedPId, 
+                encryptionPKey  
+            }),
             user: {
                 role,
                 status: user.status,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 fullName: `${user.firstName} ${user.lastName}`,
-                authType,
-                ...(role === 0 && { providerId: provider?._id })
+                authType
             }
         });
 

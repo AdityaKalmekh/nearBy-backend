@@ -6,6 +6,17 @@ interface EncryptedData {
     iv: string;
 }
 
+interface EncryptedIdData {
+    ciphertext: string;
+    iv: string;
+    salt: string;
+}
+
+interface EncryptionResult {
+    encryptedData: string;
+    encryptionKey: string;
+}
+
 interface UserData {
     userId: Types.ObjectId,
     firstName?: String,
@@ -43,4 +54,54 @@ export const encryptUserData = (data: UserData, secretKey: string): EncryptedDat
 
 export const generateSecureKey = (): string => {
     return CryptoJS.lib.WordArray.random(32).toString();
+};
+
+const generateRandomIV = (length: number = 16): string => {
+    return CryptoJS.lib.WordArray.random(length).toString();
+};
+
+const encryptId = (id: string): EncryptionResult => {
+    const encryptionKey = generateSecureKey();
+    const iv = generateRandomIV();
+    const salt = CryptoJS.lib.WordArray.random(128 / 8);
+
+    // Create key and IV from password and salt
+    const key = CryptoJS.PBKDF2(encryptionKey, salt, {
+        keySize: 256 / 32,
+        iterations: 1000
+    });
+
+    // Encrypt
+    const encrypted = CryptoJS.AES.encrypt(id, key, {
+        iv: CryptoJS.enc.Hex.parse(iv),
+        padding: CryptoJS.pad.Pkcs7,
+        mode: CryptoJS.mode.CBC
+    });
+
+    const encryptedData: EncryptedIdData = {
+        ciphertext: encrypted.ciphertext.toString(),
+        iv: iv,
+        salt: salt.toString()
+    };
+
+    return {
+        encryptedData: JSON.stringify(encryptedData),
+        encryptionKey
+    };
+};
+
+export const encryptUserId = (userId: string): { encryptedUId: string; encryptionKey: string; } => {
+    const { encryptedData, encryptionKey } = encryptId(userId);
+    return {
+        encryptedUId: encryptedData,
+        encryptionKey
+    };
+};
+
+export const encryptProviderId = (providerId: string): { encryptedPId: string; encryptionPKey: string; } => {
+    const { encryptedData, encryptionKey } = encryptId(providerId);
+    return {
+        encryptedPId: encryptedData,
+        encryptionPKey: encryptionKey
+    };
 };
