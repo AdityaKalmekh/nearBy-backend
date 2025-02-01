@@ -3,6 +3,7 @@ import { Provider } from "../models/Provider";
 import { ProviderLocation } from "../models/ProviderLocation";
 import { User } from "../models/User";
 import { UserStatus } from "../types/user.types";
+import { encryptProviderId } from "../utils/dataEncrypt";
 
 export const createProvider = async (req: Request, res: Response) => {
     try {
@@ -49,15 +50,16 @@ export const createProvider = async (req: Request, res: Response) => {
                     // }), {
                     //     secure: process.env.NODE_ENV === "production",
                     //     sameSite: process.env.NODE_ENV === "production" ? 'none' : 'strict',
-                    //     maxAge: 24 * 60 * 60 * 1000,
+                    //     maxAge: 24 * 60 * 60 * 1000, 
                     //     path: '/',
                     //     httpOnly: false,
                     // });
-
+                    const { encryptedPId, encryptionPKey } = encryptProviderId(saveLocation.providerId.toString());
                     return res.status(201).json({
                         success: true,
                         message: 'Provider created successfully',
-                        providerId: saveLocation.providerId
+                        encryptedPId,
+                        encryptionPKey
                     });
                 } catch (userUpdateError) {
                     await Provider.findByIdAndDelete(saveProvider._id);

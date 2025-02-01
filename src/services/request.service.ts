@@ -243,7 +243,7 @@ const requestService = () => {
     const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
         
         const [userDetails, attempts] = await Promise.all([
-            User.findById(userId).select("firstName lastName phoneNo -_id"),
+            User.findById(userId).select("firstName lastName phoneNo email -_id"),
             redis.hget(`request:${requestId}`, 'attempts')
         ]);
 
@@ -284,7 +284,8 @@ const requestService = () => {
                 notificationService().notifyProvider(providerId, 'request:accepted', {
                     firstName: userDetails?.firstName,
                     lastName: userDetails?.lastName,
-                    phoneNo: userDetails?.phoneNo
+                    phoneNo: userDetails?.phoneNo,
+                    email: userDetails?.email
                 }),
                 notificationService().notifyRequester(userId, 'ACCEPTED', providerId)
             ])
@@ -309,7 +310,7 @@ const requestService = () => {
                 .select('-_id -userId -__v -rating -completedServices -cancelledServices -baseLocation -status -services')
                 .populate<{ userId: IUser}>({
                     path: 'userId',
-                    select: 'firstName lastName phoneNo -_id'
+                    select: 'firstName lastName phoneNo email -_id'
                 })
                 .lean(),
             RequestOTP.findOne({
@@ -328,6 +329,7 @@ const requestService = () => {
             firstName: providerDetails.userId.firstName,
             lastName: providerDetails.userId.lastName,
             phoneNo: providerDetails.userId.phoneNo,
+            email: providerDetails.userId.email,
             otp: otpDetails?.otp
         }
     }
