@@ -12,10 +12,10 @@ export function notificationService() {
         }
     };
 
-    const notifyRequester = async (userId: string, status: string, providerId?: any) => {
+    const notifyRequester = async (userId: string, status: string, requestId?: string) => {
         socketServer.emitToUser(userId, 'request:update', {
             status,
-            providerId
+            requestId
         });
     };
 

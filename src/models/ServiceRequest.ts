@@ -37,9 +37,8 @@ const ServiceRequestSchema = new Schema<IServiceRequest>(
             distance: {
                 type: Number
             }
-        }]
-        ,
-        location: {
+        }],
+        reqLocation: {
             type: {
                 type: String,
                 enum: ['Point'],
@@ -48,6 +47,15 @@ const ServiceRequestSchema = new Schema<IServiceRequest>(
             coordinates: {
                 type: [Number],
                 required: true
+            }
+        },
+        prvLocation: {
+            type: {
+                type: String,
+                enum: ['Point'],
+            },
+            coordinates: {
+                type: [Number]
             }
         },
         searchAttempts: {

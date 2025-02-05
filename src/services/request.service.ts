@@ -9,6 +9,7 @@ import { User } from "../models/User";
 import { RequestOTP } from "../models/RequestOTP";
 import { IUser } from "../types/user.types";
 import { IRequestOTP } from "../types/requestOTP.types";
+import mongoose from "mongoose";
 
 const requestService = () => {
     const redis = getRedisClient();
@@ -80,7 +81,7 @@ const requestService = () => {
             const serviceRequest = await ServiceRequest.create({
                 requester: data.userId,
                 services: data.services,
-                location: {
+                reqLocation: {
                     type: 'Point',
                     coordinates: [data.longitude, data.latitude]
                 },
@@ -176,8 +177,6 @@ const requestService = () => {
                 requestId
             }
 
-            console.log(nextProvider);
-
             await notificationService().notifyProvider(nextProvider.providerId, 'new:request', requestData);
             setupTimeout(nextProvider.providerId, requestId, userId);
             return true;
@@ -240,13 +239,31 @@ const requestService = () => {
         }
     };
 
+    const getProviderLocationFromGeo = async (providerId: string): Promise<RequesterLocation | null> => {
+        try {
+            const coordinates = await redis.geopos('provider:locations', providerId);
+            if (!coordinates || !coordinates[0] || coordinates[0].length !== 2) {
+                throw createAppError('Provider Location data not found in redis');
+            }
+
+            const [long, lat] = coordinates[0];
+            return {
+                longitude: parseFloat(long),
+                latitude: parseFloat(lat)
+            }
+        } catch (error) {
+            throw error;
+        }
+    }
+
     const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
-        
+
         const [userDetails, attempts] = await Promise.all([
             User.findById(userId).select("firstName lastName phoneNo email -_id"),
             redis.hget(`request:${requestId}`, 'attempts')
         ]);
 
+        const coordinates = await getProviderLocationFromGeo(providerId);
         const otp = generateOTP();
         const expiresAt = getExpiryTime();
 
@@ -268,7 +285,11 @@ const requestService = () => {
                     status: ServiceStatus.ACCEPTED,
                     provider: providerId,
                     searchAttempts: attempts,
-                    otpGenerated: true 
+                    prvLocation: {
+                        type: 'Point',
+                        coordinates: [coordinates?.longitude, coordinates?.latitude]
+                    },
+                    otpGenerated: true
                 }
             ),
 
@@ -279,15 +300,16 @@ const requestService = () => {
                 .del(`request:${requestId}:provider_queue`)
                 .exec(),
 
-            // Send notifications
+            // Send Notifications
             Promise.all([
-                notificationService().notifyProvider(providerId, 'request:accepted', {
-                    firstName: userDetails?.firstName,
-                    lastName: userDetails?.lastName,
-                    phoneNo: userDetails?.phoneNo,
-                    email: userDetails?.email
-                }),
-                notificationService().notifyRequester(userId, 'ACCEPTED', providerId)
+                // notificationService().notifyProvider(providerId, 'request:accepted', {
+                //     firstName: userDetails?.firstName,
+                //     lastName: userDetails?.lastName,
+                //     phoneNo: userDetails?.phoneNo,
+                //     email: userDetails?.email
+                // }),
+                notificationService().notifyProvider(providerId, 'request:accepted', requestId),
+                notificationService().notifyRequester(userId, 'ACCEPTED', requestId)
             ])
         ]).catch(error => {
 
@@ -304,33 +326,159 @@ const requestService = () => {
         }
     };
 
-    const getProviderDetails = async (providerId: string) => {
-        const [providerDetails, otpDetails] = await Promise.all([
-            Provider.findById(providerId)
-                .select('-_id -userId -__v -rating -completedServices -cancelledServices -baseLocation -status -services')
-                .populate<{ userId: IUser}>({
-                    path: 'userId',
-                    select: 'firstName lastName phoneNo email -_id'
-                })
-                .lean(),
-            RequestOTP.findOne({
-                provider: providerId,
-                verified: false,
-                expiresAt: { $gt: new Date() }
-            })
-            .select<IRequestOTP>('otp')
-            .lean()
-        ]);
+    // const getProviderDetails = async (providerId: string) => {
+    //     const [providerDetails, otpDetails] = await Promise.all([
+    //         Provider.findById(providerId)
+    //             .select('-_id -userId -__v -rating -completedServices -cancelledServices -baseLocation -status -services')
+    //             .populate<{ userId: IUser}>({
+    //                 path: 'userId',
+    //                 select: 'firstName lastName phoneNo email -_id'
+    //             })
+    //             .lean(),
+    //         RequestOTP.findOne({
+    //             provider: providerId,
+    //             verified: false,
+    //             expiresAt: { $gt: new Date() }
+    //         })
+    //         .select<IRequestOTP>('otp')
+    //         .lean()
+    //     ]);
 
-        if (!providerDetails) {
-            throw createAppError("Provider Not found");
+    //     if (!providerDetails) {
+    //         throw createAppError("Provider Not found");
+    //     }
+    //     return {
+    //         firstName: providerDetails.userId.firstName,
+    //         lastName: providerDetails.userId.lastName,
+    //         phoneNo: providerDetails.userId.phoneNo,
+    //         email: providerDetails.userId.email,
+    //         otp: otpDetails?.otp
+    //     }
+    // }
+
+    const getServiceRequestDetails = async (requestId: string) => {
+        try {
+            const result = await ServiceRequest.aggregate([
+                // Match only using requestId
+                {
+                    $match: {
+                        _id: new mongoose.Types.ObjectId(requestId)
+                    }
+                },
+                // Join with providers collection
+                {
+                    $lookup: {
+                        from: "providers",
+                        localField: "provider",
+                        foreignField: "_id",
+                        as: "providerInfo"
+                    }
+                },
+                // Unwind provider array
+                {
+                    $unwind: "$providerInfo"
+                },
+                // Join with users collection using provider's userId
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "providerInfo.userId",
+                        foreignField: "_id",
+                        as: "userInfo"
+                    }
+                },
+                // Unwind users array
+                {
+                    $unwind: "$userInfo"
+                },
+                // Join with requestotps collection
+                {
+                    $lookup: {
+                        from: "requestotps",
+                        let: {
+                            requestId: "$_id",
+                            providerId: "$provider"
+                        },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ["$serviceRequest", "$$requestId"] },
+                                            { $eq: ["$provider", "$$providerId"] }
+                                        ]
+                                    }
+                                }
+                            },
+                            // Sort by createdAt to get the latest OTP if multiple exist
+                            { $sort: { createdAt: -1 } },
+                            { $limit: 1 }
+                        ],
+                        as: "otpInfo"
+                    }
+                },
+                // Unwind OTP array (optional, will be null if no OTP exists)
+                {
+                    $unwind: {
+                        path: "$otpInfo",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                // Project only the required fields
+                {
+                    $project: {
+                        _id: 0,
+                        prvLocation: 1,
+                        "userInfo.firstName": 1,
+                        "userInfo.lastName": 1,
+                        "userInfo.email": 1,
+                        "userInfo.phoneNo": 1,
+                        "otpInfo.otp": 1
+                    }
+                }
+            ]);
+
+            return result[0] || null;
+        } catch (error) {
+            console.error('Error fetching service request details:', error);
+            throw error;
         }
-        return {
-            firstName: providerDetails.userId.firstName,
-            lastName: providerDetails.userId.lastName,
-            phoneNo: providerDetails.userId.phoneNo,
-            email: providerDetails.userId.email,
-            otp: otpDetails?.otp
+    }
+
+    const getRequesterDetails = async (requestId: string) => {
+        try {
+            const result = await ServiceRequest.aggregate([
+                {
+                    $match: {
+                        _id: new mongoose.Types.ObjectId(requestId)
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'requester',
+                        foreignField: '_id',
+                        as: 'userInfo'
+                    }
+                },
+                {
+                    $unwind: "$userInfo"
+                }, 
+                {
+                    $project: {
+                        _id: 0,
+                        reqLocation: 1,
+                        "userInfo.firstName": 1,
+                        "userInfo.lastName": 1,
+                        "userInfo.email": 1,
+                        "userInfo.phoneNo": 1,     
+                    }
+                }
+            ]);
+
+            return result[0] || null;
+        } catch (error) {
+            throw error;
         }
     }
 
@@ -340,7 +488,8 @@ const requestService = () => {
         handleProviderResponse,
         processNextProvider,
         findNearbyProviders,
-        getProviderDetails
+        getServiceRequestDetails,
+        getRequesterDetails
     }
 }
 

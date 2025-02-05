@@ -146,7 +146,6 @@ const createLocationTrackingService = () => {
     }
   };
 
-
   const endShift = async (providerId: string) => {
     try {
       

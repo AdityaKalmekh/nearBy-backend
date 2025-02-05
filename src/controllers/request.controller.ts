@@ -43,7 +43,7 @@ export const requestController = {
 
         try {
             const { latitude, longitude, userId } = req.body;
-
+        
             if (!userId){
                 return res.status(400).json({
                     error: 'userid is not define'
@@ -81,17 +81,31 @@ export const requestController = {
         }
     }),
 
-    providerDetails: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    requestDetails: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
         if (!requestservice) {
             await initializeService();
         }
 
-        const { providerId } = req.params;
+        const { requestId } = req.params;
         try {
-            const providerDetails = await requestservice.getProviderDetails(providerId); 
+            const providerDetails = await requestservice.getServiceRequestDetails(requestId); 
             res.json(providerDetails);
         } catch (error) {
             next(error);
         }       
+    }),
+
+    requesterDetails: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+        if (!requestService) {
+            await initializeService();
+        }
+        
+        const { requestId } = req.params;
+        try {
+            const requesterDetails = await requestservice.getRequesterDetails(requestId);
+            res.json(requesterDetails);
+        } catch (error) {
+            next(error);
+        }
     })
 }

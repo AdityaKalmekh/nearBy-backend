@@ -23,7 +23,11 @@ export interface IServiceRequest extends Document {
     startTime?: Date;                 // Optional initially
     endTime?: Date;
     address?: string;
-    location: {
+    reqLocation: {
+        type: string,
+        coordinates: number[]
+    };
+    prvLocation?: {
         type: string,
         coordinates: number[]
     };
