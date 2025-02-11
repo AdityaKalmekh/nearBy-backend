@@ -71,10 +71,10 @@ export function createSocketServer(httpServer: HTTPServer) {
                 socket.to(roomName).emit('location:updated', location);
             });
             
-            socket.on('disconnect', () => {
-                // Clean up maps
-                for (const [userId, socketId] of userSockets.entries()) {
-                    // if (socketId === socket.id) userSockets.delete(userId);
+                    socket.on('disconnect', () => {
+                        // Clean up maps
+                        for (const [userId, socketId] of userSockets.entries()) {
+                            // if (socketId === socket.id) userSockets.delete(userId);
                     if (socketId === socket.id) {
                         userSockets.delete(userId);
                         // Leave all service request rooms
