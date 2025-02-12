@@ -429,7 +429,6 @@ const requestService = () => {
                     $project: {
                         _id: 0,
                         prvLocation: 1,
-                        reqLocation: 1,
                         "userInfo.firstName": 1,
                         "userInfo.lastName": 1,
                         "userInfo.email": 1,
