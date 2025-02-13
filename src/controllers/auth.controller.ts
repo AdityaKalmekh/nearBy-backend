@@ -272,18 +272,23 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
         // If it's not new and provider get providerId
         let provider: IProvider | null = null;
+        let status: string | null = null;
         if (role === 0 && !isNewUser) {
-            const userId = user?._id;
-            provider = await Provider.findOne(
-                { userId: userId },
-                { _id: 1 }  // Only return the _id field
-            );
-
-            if (!provider) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Provider not found'
-                });
+            if (user.roles.find(role => role === 0)) {
+                const userId = user?._id;
+                provider = await Provider.findOne(
+                    { userId: userId },
+                    { _id: 1 }  // Only return the _id field
+                );
+    
+                if (!provider) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Provider not found'
+                    });
+                }
+            }else {
+                status = UserStatus.SERVICE_DETAILS_PENDING;
             }
         }
 
@@ -325,7 +330,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
             }),
             user: {
                 role,
-                status: user.status,
+                status: status ? status : user.status,
                 firstName: user.firstName,
                 lastName: user.lastName,
                 fullName: `${user.firstName} ${user.lastName}`,
