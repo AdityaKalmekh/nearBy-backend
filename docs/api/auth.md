@@ -506,37 +506,6 @@ Cookie: auth_token=<jwt_token>
 - REQUESTER users become ACTIVE after details update
 - PROVIDER users move to SERVICE_DETAILS_PENDING for additional verification
 
-### Code Example
-
-#### Making an API Request
-```javascript
-const response = await fetch('http://localhost:5000/api/auth/details', {
-  method: 'PATCH',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  credentials: 'include',  // Important for sending cookies
-  body: JSON.stringify({
-    firstName: "John",
-    lastName: "Doe"
-  })
-});
-
-const data = await response.json();
-```
-
-### Testing Notes
-
-#### Test Cases
-1. Update details with valid JWT and PROVIDER role
-2. Update details with valid JWT and REQUESTER role
-3. Attempt update with invalid JWT
-4. Attempt update with unauthorized role
-5. Update with missing fields
-6. Verify status changes:
-   - REQUESTER → ACTIVE
-   - PROVIDER → SERVICE_DETAILS_PENDING
-
 #### Required Headers
 ```
 Cookie: auth_token=<valid_jwt_token>
