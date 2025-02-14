@@ -416,4 +416,137 @@ Regenerates and resends OTP to the user's email or phone number.
 
 ---
 
+### Update User Details
+Updates the user's profile details. This is a protected endpoint that requires authentication and proper role authorization.
+
+#### `PATCH /auth/details`
+
+#### Authentication
+- Requires valid JWT token in `auth_token` cookie
+- Requires one of the following roles: PROVIDER, REQUESTER
+
+#### Request Headers
+```
+Cookie: auth_token=<jwt_token>
+```
+
+#### Request Body
+```json
+{
+  "firstName": "string",  // Required - User's first name
+  "lastName": "string"   // Required - User's last name
+}
+```
+
+#### Example Request
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "Profile details update successfully",
+  "firstName": "John",
+  "lastName": "Doe",
+  "role": 1  // 0 for PROVIDER, 1 for REQUESTER
+}
+```
+
+#### Error Responses
+
+##### Unauthorized (401)
+```json
+{
+  "success": false,
+  "message": "Unauthorized access"
+}
+```
+
+##### Invalid Role (403)
+```json
+{
+  "success": false,
+  "message": "Access forbidden"
+}
+```
+
+##### Update Failed (404)
+```json
+{
+  "success": false,
+  "message": "Failed to update profile"
+}
+```
+
+##### Server Error (500)
+```json
+{
+  "success": false,
+  "message": "Failed to verify OTP"
+}
+```
+
+### Implementation Details
+
+#### Authorization Flow
+1. Validate JWT token using `authMiddleware`
+2. Check user role using `authorize([ROLES.PROVIDER, ROLES.REQUESTER])`
+3. Extract user ID and role from authenticated request
+4. Update user details in database
+5. Update user status based on role:
+   - REQUESTER: Set to ACTIVE
+   - PROVIDER: Set to SERVICE_DETAILS_PENDING
+
+#### Status Management
+- REQUESTER users become ACTIVE after details update
+- PROVIDER users move to SERVICE_DETAILS_PENDING for additional verification
+
+### Code Example
+
+#### Making an API Request
+```javascript
+const response = await fetch('http://localhost:5000/api/auth/details', {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  credentials: 'include',  // Important for sending cookies
+  body: JSON.stringify({
+    firstName: "John",
+    lastName: "Doe"
+  })
+});
+
+const data = await response.json();
+```
+
+### Testing Notes
+
+#### Test Cases
+1. Update details with valid JWT and PROVIDER role
+2. Update details with valid JWT and REQUESTER role
+3. Attempt update with invalid JWT
+4. Attempt update with unauthorized role
+5. Update with missing fields
+6. Verify status changes:
+   - REQUESTER → ACTIVE
+   - PROVIDER → SERVICE_DETAILS_PENDING
+
+#### Required Headers
+```
+Cookie: auth_token=<valid_jwt_token>
+```
+
+#### Middleware Checks
+- JWT validation
+- Role authorization
+- User existence
+
+---
+
 *Last Updated: 14-02-2025*
