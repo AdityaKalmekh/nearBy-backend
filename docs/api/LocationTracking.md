@@ -191,3 +191,222 @@ const locationData = {
 - Redis transactions ensure data consistency
 - Geospatial indexing enables efficient nearby searches
 - System includes automatic fallback for distance calculations
+
+## Update Location Endpoint
+
+### Overview
+This endpoint allows real-time updating of a provider's location during an active tracking session.
+
+### Endpoint Details
+**URL:** `/provider/location/update/:providerId`  
+**Method:** `PATCH`  
+**Authentication:** Required (JWT)  
+**Authorization:** Required (PROVIDER role)
+
+### Path Parameters
+- `providerId`: The unique identifier of the provider
+
+### Request Body
+```json
+{
+  "latitude": number,
+  "longitude": number,
+  "accuracy": number,
+  "source": string
+}
+```
+
+### Success Response
+**Code:** 200 OK
+```json
+{
+  "success": true,
+  "message": "Location updated successfully"
+}
+```
+
+### Error Responses
+
+**Code:** 400 Bad Request
+```json
+{
+  "error": "No active session found"
+}
+```
+
+**Code:** 500 Internal Server Error
+```json
+{
+  "error": "Failed to update location"
+}
+```
+
+## Process Flow
+
+1. **Service Validation**
+   - Checks if location service is initialized
+   - Initializes service if necessary
+
+2. **Session Verification**
+   - Verifies provider has an active tracking session
+   - Checks status in Redis
+
+3. **Location Update**
+   - Updates provider's current location in Redis
+   - Updates geospatial index
+   - Updates last update timestamp
+
+## Technical Implementation
+
+### Location Update Process
+```typescript
+const locationData = {
+  ...location,
+  timestamp: Date.now(),
+  updatedAt: new Date()
+};
+```
+
+### Redis Operations
+The update process executes two operations atomically:
+
+1. **Hash Update**
+```typescript
+redis.hset(
+  `provider:${providerId}`,
+  'location', JSON.stringify(locationData),
+  'lastUpdate', Date.now()
+)
+```
+
+2. **Geospatial Index Update**
+```typescript
+redis.geoadd(
+  'provider:locations',
+  location.longitude,
+  location.latitude,
+  providerId
+)
+```
+
+## Data Structure
+
+### Updated Location Data
+```typescript
+interface LocationDetails {
+  longitude: number;
+  latitude: number;
+  accuracy: number;
+  source: string;
+  timestamp: number;
+  updatedAt: Date;
+}
+```
+
+### Redis Storage Format
+Key: `provider:{providerId}`
+```json
+{
+  "location": "{LocationDetails}",
+  "lastUpdate": timestamp
+}
+```
+
+## Validation Rules
+
+1. **Session Status**
+   - Must have an active tracking session
+   - Status must be 'active' in Redis
+
+2. **Location Data**
+   - Valid coordinate ranges:
+     - Latitude: -90 to 90
+     - Longitude: -180 to 180
+   - Required fields: latitude, longitude, accuracy, source
+
+## Error Handling
+
+1. **Session Validation**
+   - Checks for active session status
+   - Returns appropriate error if session is not active
+
+2. **Redis Operations**
+   - Handles Redis transaction failures
+   - Ensures atomic updates
+   - Provides clear error messages
+
+3. **Data Validation**
+   - Validates coordinate formats
+   - Ensures all required fields are present
+
+## Performance Considerations
+
+1. **Redis Transactions**
+   - Uses multi-exec for atomic operations
+   - Ensures data consistency
+   - Minimizes race conditions
+
+2. **Data Storage**
+   - Optimized for frequent updates
+   - Maintains real-time tracking capability
+   - Efficient geospatial indexing
+
+3. **Update Frequency**
+   - Designed for high-frequency updates
+   - Optimized for low-latency operations
+
+## Integration with Tracking System
+
+1. **Session Management**
+   - Coordinates with tracking start/stop operations
+   - Maintains session state consistency
+
+2. **Location History**
+   - Updates current location
+   - Maintains last update timestamp
+   - Preserves tracking continuity
+
+## Dependencies
+- Redis for real-time location storage
+- JWT service for authentication
+- Location tracking service
+
+## Notes
+- Updates are atomic operations
+- Timestamps are automatically managed
+- Geospatial index is maintained for location queries
+- Session status must be verified before updates
+- All updates include source tracking for audit purposes
+
+## Error Scenarios
+
+1. **Invalid Session**
+   - Occurs when updating location without active session
+   - Requires session restart
+
+2. **Redis Failures**
+   - Transaction failures
+   - Connection issues
+   - Data consistency errors
+
+3. **Invalid Location Data**
+   - Coordinate validation failures
+   - Missing required fields
+   - Format issues
+
+## Best Practices
+
+1. **Update Frequency**
+   - Implement reasonable update intervals
+   - Consider battery optimization
+   - Balance accuracy vs resource usage
+
+2. **Error Recovery**
+   - Implement retry logic for failed updates
+   - Handle session recovery gracefully
+   - Maintain data consistency
+
+3. **Data Validation**
+   - Validate coordinates before update
+   - Verify session status
+   - Ensure data completeness
