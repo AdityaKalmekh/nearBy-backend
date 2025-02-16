@@ -410,3 +410,211 @@ Key: `provider:{providerId}`
    - Validate coordinates before update
    - Verify session status
    - Ensure data completeness
+
+## Stop Tracking Endpoint
+
+### Overview
+This endpoint terminates an active location tracking session for a provider, saving the final location to MongoDB and cleaning up Redis data.
+
+### Endpoint Details
+**URL:** `/provider/location/stop/:providerId`  
+**Method:** `POST`  
+**Authentication:** Required (JWT)  
+**Authorization:** Required (PROVIDER role)
+
+### Path Parameters
+- `providerId`: The unique identifier of the provider
+
+### Success Response
+**Code:** 200 OK
+```json
+{
+  "success": true,
+  "message": "Shift ended successfully"
+}
+```
+
+### Error Responses
+
+**Code:** 400 Bad Request
+```json
+{
+  "error": "No active session found"
+}
+```
+
+**Code:** 400 Bad Request
+```json
+{
+  "error": "No location data found"
+}
+```
+
+**Code:** 500 Internal Server Error
+```json
+{
+  "error": "Redis client not initialized"
+}
+```
+
+**Code:** 500 Internal Server Error
+```json
+{
+  "error": "Failed to update provider location in MongoDB"
+}
+```
+
+**Code:** 500 Internal Server Error
+```json
+{
+  "error": "Failed to cleanup Redis data"
+}
+```
+
+## Process Flow
+
+1. **Service Validation**
+   - Verifies Redis client initialization
+   - Checks for active tracking session
+
+2. **Location Data Retrieval**
+   - Fetches current location data from Redis
+   - Validates location data existence
+
+3. **MongoDB Update**
+   - Converts Redis location data to MongoDB format
+   - Updates provider's location in MongoDB
+   - Sets isActive status to false
+
+4. **Redis Cleanup**
+   - Removes provider data from Redis hash
+   - Removes provider from geospatial index
+   - Executes cleanup operations atomically
+
+## Technical Implementation
+
+### Location Data Transformation
+```typescript
+const currentLocationData = {
+  currentLocation: {
+    type: "Point",
+    coordinates: [longitude, latitude],
+    source: string,
+    accuracy: number,
+    lastUpdated: Date
+  },
+  isActive: false
+}
+```
+
+### MongoDB Update Operation
+```typescript
+await ProviderLocation.findOneAndUpdate(
+  { providerId: new ObjectId(providerId) },
+  { $set: currentLocationData },
+  { new: true }
+);
+```
+
+### Redis Cleanup Operations
+```typescript
+redis.multi()
+  .del(`provider:${providerId}`)
+  .zrem('provider:locations', providerId)
+  .exec();
+```
+
+## Data Flow
+
+1. **Data Retrieval**
+   - Fetches location data from Redis hash
+   - Parses JSON location data
+
+2. **Data Transformation**
+   - Converts coordinates to GeoJSON Point format
+   - Preserves source and accuracy information
+   - Updates timestamp information
+
+3. **Data Persistence**
+   - Saves final location to MongoDB
+   - Removes temporary Redis data
+
+## Validation Rules
+
+1. **Session Validation**
+   - Must have an active session in Redis
+   - Must have existing location data
+
+2. **Data Integrity**
+   - Valid coordinate formats
+   - Complete location information
+   - Proper timestamp data
+
+## Error Handling
+
+1. **Initialization Errors**
+   - Redis client availability
+   - Service initialization status
+
+2. **Session Errors**
+   - Missing active session
+   - Invalid session status
+
+3. **Data Errors**
+   - Missing location data
+   - Invalid data format
+   - MongoDB update failures
+   - Redis cleanup failures
+
+## Data Cleanup Process
+
+1. **MongoDB Update**
+   - Updates final location
+   - Marks provider as inactive
+   - Preserves location history
+
+2. **Redis Cleanup**
+   - Removes provider hash data
+   - Removes from geospatial index
+   - Ensures atomic operations
+
+## Performance Considerations
+
+1. **Transaction Management**
+   - Atomic Redis operations
+   - MongoDB update optimization
+   - Error recovery handling
+
+2. **Data Consistency**
+   - Validates all operations
+   - Maintains data integrity
+   - Handles cleanup failures
+
+## Dependencies
+- Redis for session management
+- MongoDB for persistent storage
+- JWT service for authentication
+- ObjectId for MongoDB operations
+
+## Best Practices
+
+1. **Error Recovery**
+   - Implement proper error logging
+   - Handle cleanup failures gracefully
+   - Maintain data consistency
+
+2. **Data Validation**
+   - Verify data completeness
+   - Validate coordinate formats
+   - Ensure proper timestamps
+
+3. **Resource Management**
+   - Clean up Redis resources
+   - Update MongoDB efficiently
+   - Handle connections properly
+
+## Notes
+- Always verify active session before stopping
+- Ensure proper data transformation
+- Handle cleanup operations atomically
+- Maintain audit trail of location updates
