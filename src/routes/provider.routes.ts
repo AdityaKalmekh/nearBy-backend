@@ -6,7 +6,8 @@ import { createProvider } from '../controllers/provider.controller';
 
 const routes = express.Router();
 
-routes.post("/provider", asyncHandler(jwtService.authMiddleware),
+routes.post("/provider", 
+    asyncHandler(jwtService.authMiddleware),
     asyncHandler(jwtService.authorize([ROLES.PROVIDER])),
     asyncHandler(createProvider));
 
