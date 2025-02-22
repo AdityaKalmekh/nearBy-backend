@@ -61,7 +61,6 @@ const initialDataConfig: CookieOptions = {
 
 const refreshCookieConfig: CookieOptions = {
     ...cookieConfig,
-    httpOnly: true,
     maxAge: 30 * 24 * 60 * 60
 };
 
@@ -274,7 +273,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         let provider: IProvider | null = null;
         let status: string | null = null;
         if (role === 0 && !isNewUser) {
-            if (user.roles.find(role => role === 0)) {
+            if (user.roles.includes(0)){
                 const userId = user?._id;
                 provider = await Provider.findOne(
                     { userId: userId },
