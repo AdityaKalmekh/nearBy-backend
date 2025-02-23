@@ -149,7 +149,7 @@ const requestService = () => {
             // 1. Get provider queue
             const queueStr = await redis.get(`request:${requestId}:provider_queue`);
             if (!queueStr) {
-                await handleNoProvidersAvailable(requestId);
+                await handleNoProvidersAvailable(requestId, userId);
                 return false;
             }
             const queue = JSON.parse(queueStr) as ProviderWithDistance[];
@@ -158,7 +158,7 @@ const requestService = () => {
             const nextProvider = queue.shift();
 
             if (!nextProvider) {
-                await handleNoProvidersAvailable(requestId);
+                await handleNoProvidersAvailable(requestId, userId);
                 return false;
             }
 
@@ -206,7 +206,7 @@ const requestService = () => {
         }, 20000);
     };
 
-    const handleNoProvidersAvailable = async (requestId: string) => {
+    const handleNoProvidersAvailable = async (requestId: string, userId: string) => {
         const attempts = await redis.hget(`request:${requestId}`, 'attempts');
 
         await Promise.all([
@@ -219,8 +219,8 @@ const requestService = () => {
                 status: ServiceStatus.NO_PROVIDER,
                 searchAttempts: attempts
             })
-        ])
-        await notificationService().notifyRequester(requestId, 'NO_PROVIDER');
+        ]);
+        await notificationService().notifyRequester(userId, 'NO_PROVIDER', requestId);
     };
 
     const handleProviderResponse = async (requestId: string, providerId: string, accepted: boolean, userId: string) => {
@@ -322,7 +322,7 @@ const requestService = () => {
         await redis.del(`request:${requestId}:timeout`);
         const nextAvailable = await processNextProvider(requestId, userId);
         if (!nextAvailable) {
-            await handleNoProvidersAvailable(requestId);
+            await handleNoProvidersAvailable(requestId, userId);
         }
     };
 
@@ -464,7 +464,7 @@ const requestService = () => {
                 },
                 {
                     $unwind: "$userInfo"
-                }, 
+                },
                 {
                     $project: {
                         _id: 0,
@@ -472,7 +472,7 @@ const requestService = () => {
                         "userInfo.firstName": 1,
                         "userInfo.lastName": 1,
                         "userInfo.email": 1,
-                        "userInfo.phoneNo": 1,     
+                        "userInfo.phoneNo": 1,
                     }
                 }
             ]);
