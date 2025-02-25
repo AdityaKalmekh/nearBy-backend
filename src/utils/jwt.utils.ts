@@ -149,7 +149,7 @@ const refreshAuthToken = async (refreshToken: string) => {
             decoded.status,
             decoded.role
         );
-        
+
         return { newAuthToken, decoded };
     } catch (error) {
         console.error('Refresh token error:', error);

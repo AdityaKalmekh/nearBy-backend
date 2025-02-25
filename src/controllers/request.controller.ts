@@ -28,9 +28,13 @@ export const requestController = {
 
             // Find nearBy providers
             const providers = await requestservice.findNearbyProviders({ longitude, latitude });
-            console.log(providers);
 
-            res.status(200).json(providers);
+            if (providers.length > 0) {
+                res.status(200).json({ 'Availability': true });
+            } else {
+                res.status(200).json({ 'Availability': false });
+            }
+
         } catch (error) {
             next(error);
         }
@@ -43,21 +47,21 @@ export const requestController = {
 
         try {
             const { latitude, longitude, userId } = req.body;
-        
-            if (!userId){
+
+            if (!userId) {
                 return res.status(400).json({
                     error: 'userid is not define'
                 })
             }
-            
+
             if (!latitude || !longitude) {
                 return res.status(400).json({
                     error: 'Missing required location coordinates'
                 });
             }
 
-            const createRequestResponse = await requestservice.createNewServiceRequest(req.body);    
-            const providersAvailability = await requestservice.startProviderSearch(createRequestResponse);            
+            const createRequestResponse = await requestservice.createNewServiceRequest(req.body);
+            const providersAvailability = await requestservice.startProviderSearch(createRequestResponse);
             res.json({ success: providersAvailability });
 
         } catch (error) {
@@ -88,18 +92,18 @@ export const requestController = {
 
         const { requestId } = req.params;
         try {
-            const providerDetails = await requestservice.getServiceRequestDetails(requestId); 
+            const providerDetails = await requestservice.getServiceRequestDetails(requestId);
             res.json(providerDetails);
         } catch (error) {
             next(error);
-        }       
+        }
     }),
 
     requesterDetails: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
         if (!requestService) {
             await initializeService();
         }
-        
+
         const { requestId } = req.params;
         try {
             const requesterDetails = await requestservice.getRequesterDetails(requestId);
