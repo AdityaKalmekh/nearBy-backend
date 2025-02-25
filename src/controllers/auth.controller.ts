@@ -281,10 +281,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
                 );
     
                 if (!provider) {
-                    return res.status(404).json({
-                        success: false,
-                        message: 'Provider not found'
-                    });
+                    // return res.status(404).json({
+                    //     success: false,
+                    //     message: 'Provider not found'
+                    // });
+                    status = UserStatus.SERVICE_DETAILS_PENDING;
                 }
             }else {
                 status = UserStatus.SERVICE_DETAILS_PENDING;
