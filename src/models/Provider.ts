@@ -18,7 +18,7 @@ const ProviderSchema = new Schema<IProvider>(
             //     required: true
             // },
             serviceType: { type: String, required: true },
-            visitingCharge: { type: Number }
+            visitingCharge: { type: Number  }
         }],
         status: {
             type: String,

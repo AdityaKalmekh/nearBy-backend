@@ -13,7 +13,7 @@ export interface IProvider extends Document {
     services: Array<{
         // serviceId: Types.ObjectId,
         serviceType: string,
-        visitingCharge?: number,
+        visitingCharge? : number,
     }>
     serviceArea: {
         type: string,
