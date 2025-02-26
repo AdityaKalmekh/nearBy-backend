@@ -290,6 +290,8 @@ export const verifyOTP = async (req: Request, res: Response) => {
             }else {
                 status = UserStatus.SERVICE_DETAILS_PENDING;
             }
+        } else if (role === 1 && user.status === UserStatus.SERVICE_DETAILS_PENDING) {
+            status = UserStatus.ACTIVE;
         }
 
         // res.clearCookie('t_data_key_c');
