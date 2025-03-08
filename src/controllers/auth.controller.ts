@@ -49,7 +49,7 @@ const validateAuthInput = (identifier: string, type: 'EMAIL' | 'PHONE') => {
 const cookieConfig: CookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 60 * 60 * 1000,
     path: '/',
 };
@@ -67,7 +67,7 @@ const refreshCookieConfig: CookieOptions = {
 const userIdCookieConfig: CookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 30 * 24 * 60 * 60
 }
 
@@ -273,13 +273,13 @@ export const verifyOTP = async (req: Request, res: Response) => {
         let provider: IProvider | null = null;
         let status: string | null = null;
         if (role === 0 && !isNewUser) {
-            if (user.roles.includes(0)){
+            if (user.roles.includes(0)) {
                 const userId = user?._id;
                 provider = await Provider.findOne(
                     { userId: userId },
                     { _id: 1 }  // Only return the _id field
                 );
-    
+
                 if (!provider) {
                     // return res.status(404).json({
                     //     success: false,
@@ -287,7 +287,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
                     // });
                     status = UserStatus.SERVICE_DETAILS_PENDING;
                 }
-            }else {
+            } else {
                 status = UserStatus.SERVICE_DETAILS_PENDING;
             }
         } else if (role === 1 && user.status === UserStatus.SERVICE_DETAILS_PENDING) {
@@ -326,9 +326,9 @@ export const verifyOTP = async (req: Request, res: Response) => {
             session_id: responseToken.sessionId,
             encryptedUId,
             encryptionKey,
-            ...(role === 0 && { 
-                encryptedPId, 
-                encryptionPKey  
+            ...(role === 0 && {
+                encryptedPId,
+                encryptionPKey
             }),
             user: {
                 role,
