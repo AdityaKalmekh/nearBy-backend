@@ -8,6 +8,7 @@ import { Provider } from "../models/Provider";
 import { IProvider } from "../types/provider.types";
 import { sendEmail } from "../services/email.service";
 import { encryptProviderId, encryptUserData, encryptUserId, generateSecureKey } from "../utils/dataEncrypt";
+import { UserSesssion } from "../models/UserSession";
 interface AuthRequestBody {
     email?: string,
     phone?: string,
@@ -434,6 +435,24 @@ export const reSend = async (req: Request, res: Response) => {
         res.status(500).json({
             success: false,
             message: error.message || 'Failed to generate resend OTP'
+        });
+    }
+}
+
+export const logout = async (req: Request, res: Response) => {
+    try {
+        console.log("Hello");
+        const { userId } = req.body;
+        console.log({ userId });
+        const sessionDelection = await UserSesssion.findOneAndDelete({ userId });
+
+        console.log(sessionDelection);
+        res.status(200).json({ success: true });
+
+    } catch (error: any) {
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed To logout'
         })
     }
 }

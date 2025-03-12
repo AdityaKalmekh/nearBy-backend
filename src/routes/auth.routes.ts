@@ -1,5 +1,5 @@
 import express from "express";
-import { initiateAuth, verifyOTP, details, reSend } from "../controllers/auth.controller";
+import { initiateAuth, verifyOTP, details, reSend, logout } from "../controllers/auth.controller";
 import { asyncHandler } from "../utils/asyncHandler";
 import { jwtService } from "../utils/jwt.utils";
 import { ROLES } from "../configs/roles";
@@ -13,5 +13,9 @@ routes.patch("/details",
     asyncHandler(jwtService.authMiddleware),
     asyncHandler(jwtService.authorize([ROLES.PROVIDER, ROLES.REQUESTER])),
     asyncHandler(details));
+routes.delete("/logout",
+    asyncHandler(jwtService.authMiddleware),
+    asyncHandler(jwtService.authorize([ROLES.PROVIDER, ROLES.REQUESTER])),
+    asyncHandler(logout));
 
 export default routes;
