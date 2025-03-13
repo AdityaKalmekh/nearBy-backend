@@ -441,13 +441,12 @@ export const reSend = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     try {
-        console.log("Hello");
         const { userId } = req.body;
-        console.log({ userId });
         const sessionDelection = await UserSesssion.findOneAndDelete({ userId });
 
-        console.log(sessionDelection);
-        res.status(200).json({ success: true });
+        if (sessionDelection) {
+            res.status(200).json({ success: true });
+        }
 
     } catch (error: any) {
         res.status(500).json({
