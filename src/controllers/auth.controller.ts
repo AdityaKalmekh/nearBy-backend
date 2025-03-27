@@ -282,14 +282,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
                 );
 
                 if (!provider) {
-                    // return res.status(404).json({
-                    //     success: false,
-                    //     message: 'Provider not found'
-                    // });
-                    status = UserStatus.SERVICE_DETAILS_PENDING;
+                    status = user.status;
                 }
             } else {
-                status = UserStatus.SERVICE_DETAILS_PENDING;
+                status = user.status;
             }
         } else if (role === 1 && user.status === UserStatus.SERVICE_DETAILS_PENDING) {
             status = UserStatus.ACTIVE;
@@ -317,7 +313,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
         });
         res.cookie("uid", encryptedUId, userIdCookieConfig);
         res.cookie("diukey", encryptionKey, userIdCookieConfig);
-
+   
         res.json({
             success: true,
             code: 200,
@@ -372,7 +368,6 @@ export const details = async (req: Request, res: Response) => {
                 message: 'Failed to update profile'
             })
         }
-
         // Add error handling for JSON parsing
         // let existingUserData: {};
         // try {
