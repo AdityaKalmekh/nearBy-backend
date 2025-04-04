@@ -16,15 +16,26 @@ export const authController = {
         try {
             const result = await authService.verifyOTP(req.body);
 
-            // Extract cookie configuration
             const {
                 cookieConfig,
                 refreshCookieConfig,
                 userIdCookieConfig
             } = req.app.locals.config || {
-                cookieConfig: { httpOnly: true, secure: true, maxAge: 60 * 60 * 1000 },
-                refreshCookieConfig: { httpOnly: true, secure: true, maxAge: 30 * 24 * 60 * 60 },
-                userIdCookieConfig: { httpOnly: false, secure: true, maxAge: 30 * 24 * 60 * 60 }
+                cookieConfig: { 
+                    httpOnly: true, 
+                    secure: process.env.NODE_ENV === 'production', 
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 60 * 60 * 1000 },
+                refreshCookieConfig: { 
+                    httpOnly: true, 
+                    secure: process.env.NODE_ENV === 'production', 
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 30 * 24 * 60 * 60 },
+                userIdCookieConfig: { 
+                    httpOnly: true, 
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+                    maxAge: 30 * 24 * 60 * 60 }
             };
 
             // Set cookies if verification was successful
