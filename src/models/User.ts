@@ -1,7 +1,10 @@
-import mongoose, { Document } from "mongoose";
+import mongoose, { Document, Types } from "mongoose";
 import { IUser, IUserMethods, UserRole, UserStatus, UserModel } from "../types/user.types";
 
-type UserDocument = Document<unknown, {}, IUser> & IUser & IUserMethods;
+export type UserDocument = Document<unknown, {}, IUser> & IUser & IUserMethods;
+// export type UserDocument = Document<unknown, {}, IUser> & 
+//                    Omit<IUser & Required<{ _id: Types.ObjectId }> & { __v: number }, keyof IUserMethods> & 
+//                    IUserMethods;
 
 const userSchema = new mongoose.Schema<IUser, UserModel, IUserMethods>(
     {
@@ -118,7 +121,7 @@ userSchema.static('createInitialUser', async function (identifier: { email?: str
 // Middleware
 userSchema.pre('save', async function (this: UserDocument, next) {
 
-    if (!this.email && !this.phoneNo) {
+    if (this.isNew && !this.email && !this.phoneNo) {
         throw new Error('Either email or phone is required');
     }
     // Update status if profile is completed
@@ -133,5 +136,7 @@ userSchema.index({ email: 1 }, { sparse: true });
 userSchema.index({ phoneNo: 1 }, { sparse: true });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: 1 });
-
+userSchema.index({ email: 1, roles: 1 });
+userSchema.index({ phoneNo: 1, roles: 1});
+ 
 export const User = mongoose.model<IUser, UserModel>('User', userSchema);

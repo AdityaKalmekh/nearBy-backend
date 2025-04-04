@@ -3,7 +3,7 @@ let redisClient: Redis | null = null;
 
 export default async function connectRedis() {
     try {
-       
+
         const options: RedisOptions = {
             host: process.env.REDIS_HOST,
             port: Number(process.env.REDIS_PORT),
@@ -11,9 +11,20 @@ export default async function connectRedis() {
                 if (times > 3) return null;
                 return Math.min(times * 100, 2000);
             },
-            maxRetriesPerRequest: 1,
+            maxRetriesPerRequest: 2,
             connectTimeout: 10000,
-            lazyConnect: true
+            lazyConnect: true,
+            enableReadyCheck: true,
+            enableOfflineQueue: true,
+            reconnectOnError: (err) => {
+                const targetError = 'READONLY';
+                if (err.message.includes(targetError)) {
+                    // Only reconnect when the error includes READONLY
+                    return true;
+                }
+                return false;
+            },
+            showFriendlyErrorStack: process.env.NODE_ENV !== 'production'
         };
 
         // Add authentication only if password is provided
