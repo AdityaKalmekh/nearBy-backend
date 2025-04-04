@@ -11,20 +11,24 @@ export default async function connectRedis() {
                 if (times > 3) return null;
                 return Math.min(times * 100, 2000);
             },
-            maxRetriesPerRequest: 2,
+            maxRetriesPerRequest: 1,
             connectTimeout: 10000,
             lazyConnect: true,
-            enableReadyCheck: true,
-            enableOfflineQueue: true,
             reconnectOnError: (err) => {
-                const targetError = 'READONLY';
-                if (err.message.includes(targetError)) {
-                    // Only reconnect when the error includes READONLY
-                    return true;
+                const recoverable = [
+                    'READONLY',
+                    'ETIMEDOUT',
+                    'ECONNREFUSED',
+                    'ECONNRESET'
+                ];
+                
+                for (const errType of recoverable) {
+                    if (err.message.includes(errType)) {
+                        return true;
+                    }
                 }
                 return false;
             },
-            showFriendlyErrorStack: process.env.NODE_ENV !== 'production'
         };
 
         // Add authentication only if password is provided
