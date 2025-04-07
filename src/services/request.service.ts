@@ -590,11 +590,7 @@ const requestService = () => {
                 // Send notifications to users
                 Promise.all([
                     notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
-                    notificationService().notifyProvider(providerId, 'request:accepted', {
-                        requestId,
-                        userId,
-                        otp
-                    })
+                    notificationService().notifyProvider(providerId, 'request:accepted', requestId)
                 ])
             ]);
             
@@ -917,10 +913,7 @@ const requestService = () => {
                 notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
                 
                 // Notify provider that they got the request
-                notificationService().notifyProvider(providerId, 'request:accepted', {
-                    requestId,
-                    userId
-                })
+                notificationService().notifyProvider(providerId, 'request:accepted', requestId)
             ]);
             
             // Notify all other active providers that the request is no longer available
