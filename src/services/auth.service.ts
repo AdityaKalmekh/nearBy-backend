@@ -10,6 +10,7 @@ import { UserRole, UserStatus, IUser, IUserMethods } from '../types/user.types';
 import { OTPType, OTPPurpose } from '../types/otp.types';
 import { isValidEmail, isValidPhone } from '../utils/validators.utils';
 import { UserSesssion } from '../models/UserSession';
+import { sendEmail } from './email.service';
 
 // Types for the service
 export interface InitiateAuthParams {
@@ -63,7 +64,7 @@ export interface ResendOTPParams {
     authType: 'Email' | 'PhoneNo';
     isNewUser: boolean;
     contactOrEmail: string;
-    firstName?: string;
+    firstName: string;
 }
 
 export interface ResendOTPResponse {
@@ -210,7 +211,7 @@ export const authService = {
         // Send OTP notification (handled separately, not in this service)
         // Implement email/SMS sending logic in separate services
         if (authType === 'Email') {
-            // Use your email service here
+            await sendEmail(identifier!, otp, isNewUser, savedUser.firstName);
             console.log('Email OTP', otp);
             // emailService.sendOTP(identifier, otp, isNewUser, savedUser.firstName)
             //    .catch(err => console.error('Failed to send email OTP:', err));
