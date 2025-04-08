@@ -13,13 +13,13 @@ import mongoose from "mongoose";
 
 const requestService = () => {
     const redis = getRedisClient();
-    
+
     if (!redis) {
         throw createAppError("Redis connection is not available");
     }
-    
+
     const COLLECTION_WINDOW_MS = 3000; // 3 seconds window to collect provider acceptances
-    
+
     const generateOTP = (): string => {
         return Math.floor(1000 + Math.random() * 9000).toString();
     }
@@ -917,17 +917,17 @@ const requestService = () => {
                     .expire(`request:${requestId}`, 3600) // Keep for 1 hour
                     .exec(),
 
-                // Notify the selected provider they got the request
-                notificationService().notifyProvider(
-                    providerId,
-                    'request:accepted',
-                    requestId
-                ),
-
                 // Notify the requester that their request was accepted
                 notificationService().notifyRequester(
                     userId,
                     'ACCEPTED',
+                    requestId
+                ),
+                
+                // Notify the selected provider they got the request
+                notificationService().notifyProvider(
+                    providerId,
+                    'request:accepted',
                     requestId
                 )
             ]);
