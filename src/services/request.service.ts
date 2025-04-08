@@ -859,6 +859,8 @@ const requestService = () => {
         userId: string,
         allAcceptances: ProviderAcceptance[]
     ) => {
+        console.log("In finalize response", requestId, providerId, userId);
+        
         try {
             // Update request status to ACCEPTED
             await redis.hset(`request:${requestId}`, {
