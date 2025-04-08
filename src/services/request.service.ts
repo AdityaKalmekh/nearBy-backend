@@ -921,11 +921,7 @@ const requestService = () => {
                 notificationService().notifyProvider(
                     providerId,
                     'request:accepted',
-                    {
-                        requestId,
-                        userId,
-                        otp
-                    }
+                    requestId
                 ),
 
                 // Notify the requester that their request was accepted
