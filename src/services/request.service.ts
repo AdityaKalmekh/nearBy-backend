@@ -1152,14 +1152,15 @@ const requestService = () => {
 
             // Get provider's current location
             console.log(`Getting location for provider ${providerId}`);
-            let coordinates;
-            try {
-                coordinates = await getProviderLocationFromGeo(providerId);
-                console.log(`Provider ${providerId} coordinates:`, coordinates);
-            } catch (err) {
-                console.error(`Error getting provider location for ${providerId}:`, err);
-                // Continue without coordinates if we can't get them
-            }
+            // let coordinates;
+            // try {
+            //     coordinates = await getProviderLocationFromGeo(providerId);
+            //     console.log(`Provider ${providerId} coordinates:`, coordinates);
+            // } catch (err) {
+            //     console.error(`Error getting provider location for ${providerId}:`, err);
+            //     // Continue without coordinates if we can't get them
+            // }
+            const coordinates = await getProviderLocationFromGeo(providerId);
 
             // Generate OTP for verification
             const otp = generateOTP();
