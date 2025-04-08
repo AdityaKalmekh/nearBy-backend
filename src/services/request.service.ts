@@ -918,18 +918,10 @@ const requestService = () => {
                     .exec(),
 
                 // Notify the requester that their request was accepted
-                notificationService().notifyRequester(
-                    userId,
-                    'ACCEPTED',
-                    requestId
-                ),
-                
-                // Notify the selected provider they got the request
-                notificationService().notifyProvider(
-                    providerId,
-                    'request:accepted',
-                    requestId
-                )
+                Promise.all([
+                    notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
+                    notificationService().notifyProvider(providerId, 'request:accepted', requestId)
+                ])
             ]);
 
             // Notify all other providers their acceptances were declined
@@ -1013,43 +1005,43 @@ const requestService = () => {
         }
     };
 
-    const notifyOtherProvidersOfUnavailability = async (requestId: string, acceptedProviderId: string) => {
-        try {
-            // Get all active providers for this request
-            const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
+    // const notifyOtherProvidersOfUnavailability = async (requestId: string, acceptedProviderId: string) => {
+    //     try {
+    //         // Get all active providers for this request
+    //         const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
 
-            // Filter out the accepted provider
-            const otherProviders = activeProviders.filter(providerId => providerId !== acceptedProviderId);
+    //         // Filter out the accepted provider
+    //         const otherProviders = activeProviders.filter(providerId => providerId !== acceptedProviderId);
 
-            if (otherProviders.length === 0) {
-                console.log(`No other providers to notify for request ${requestId}`);
-                return;
-            }
+    //         if (otherProviders.length === 0) {
+    //             console.log(`No other providers to notify for request ${requestId}`);
+    //             return;
+    //         }
 
-            console.log(`Notifying ${otherProviders.length} other providers that request ${requestId} is no longer available`);
+    //         console.log(`Notifying ${otherProviders.length} other providers that request ${requestId} is no longer available`);
 
-            // Send notifications in parallel
-            const notifyPromises = otherProviders.map(providerId =>
-                notificationService().notifyProvider(
-                    providerId,
-                    'request:unavailable',
-                    {
-                        requestId,
-                        message: 'This request has been accepted by another provider',
-                        status: 'UNAVAILABLE'
-                    }
-                )
-            );
+    //         // Send notifications in parallel
+    //         const notifyPromises = otherProviders.map(providerId =>
+    //             notificationService().notifyProvider(
+    //                 providerId,
+    //                 'request:unavailable',
+    //                 {
+    //                     requestId,
+    //                     message: 'This request has been accepted by another provider',
+    //                     status: 'UNAVAILABLE'
+    //                 }
+    //             )
+    //         );
 
-            await Promise.all(notifyPromises);
+    //         await Promise.all(notifyPromises);
 
-            // Clean up by removing the active providers set
-            await redis.del(`request:${requestId}:active_providers`);
-        } catch (error) {
-            console.error("Error notifying other providers:", error);
-            // Non-critical operation, don't throw
-        }
-    };
+    //         // Clean up by removing the active providers set
+    //         await redis.del(`request:${requestId}:active_providers`);
+    //     } catch (error) {
+    //         console.error("Error notifying other providers:", error);
+    //         // Non-critical operation, don't throw
+    //     }
+    // };
 
 
     const getProviderLocationFromGeo = async (providerId: string): Promise<RequesterLocation | null> => {
@@ -1203,149 +1195,147 @@ const requestService = () => {
     //     }
     // };
 
-    const handleAcceptanceWithPriority = async (requestId: string, providerId: string, userId: string) => {
-        try {
-            // Use Redis WATCH command to create a check-and-set operation
-            // This will fail the transaction if the key changes between WATCH and EXEC
-            await redis.watch(`request:${requestId}`);
+    // const handleAcceptanceWithPriority = async (requestId: string, providerId: string, userId: string) => {
+    //     try {
+    //         // Use Redis WATCH command to create a check-and-set operation
+    //         // This will fail the transaction if the key changes between WATCH and EXEC
+    //         await redis.watch(`request:${requestId}`);
 
-            // Check if request is still in SEARCHING state
-            const status = await redis.hget(`request:${requestId}`, 'status');
+    //         // Check if request is still in SEARCHING state
+    //         const status = await redis.hget(`request:${requestId}`, 'status');
 
-            if (status !== ServiceStatus.SEARCHING) {
-                // Unwatch the key since we're not proceeding with the transaction
-                await redis.unwatch();
-                return {
-                    success: false,
-                    status: 'REQUEST_ALREADY_ACCEPTED',
-                    message: 'This request has already been accepted by another provider'
-                };
-            }
+    //         if (status !== ServiceStatus.SEARCHING) {
+    //             // Unwatch the key since we're not proceeding with the transaction
+    //             await redis.unwatch();
+    //             return {
+    //                 success: false,
+    //                 status: 'REQUEST_ALREADY_ACCEPTED',
+    //                 message: 'This request has already been accepted by another provider'
+    //             };
+    //         }
 
-            // Start a multi command (transaction) after watching
-            const tx = redis.multi();
-            tx.hset(`request:${requestId}`, 'status', ServiceStatus.ACCEPTED);
-            tx.hset(`request:${requestId}`, 'currentProvider', providerId);
+    //         // Start a multi command (transaction) after watching
+    //         const tx = redis.multi();
+    //         tx.hset(`request:${requestId}`, 'status', ServiceStatus.ACCEPTED);
+    //         tx.hset(`request:${requestId}`, 'currentProvider', providerId);
 
-            // Execute the transaction - if the watched key changed, this will return null
-            const txResult = await tx.exec();
+    //         // Execute the transaction - if the watched key changed, this will return null
+    //         const txResult = await tx.exec();
 
-            // If transaction failed (null) or was empty, another provider got it first
-            if (!txResult || txResult.length === 0) {
-                return {
-                    success: false,
-                    status: 'REQUEST_ALREADY_ACCEPTED',
-                    message: 'This request was accepted by another provider'
-                };
-            }
+    //         // If transaction failed (null) or was empty, another provider got it first
+    //         if (!txResult || txResult.length === 0) {
+    //             return {
+    //                 success: false,
+    //                 status: 'REQUEST_ALREADY_ACCEPTED',
+    //                 message: 'This request was accepted by another provider'
+    //             };
+    //         }
 
-            // Get all available providers to find this provider's distance
-            const availableProvidersStr = await redis.get(`request:${requestId}:available_providers`);
+    //         // Get all available providers to find this provider's distance
+    //         const availableProvidersStr = await redis.get(`request:${requestId}:available_providers`);
 
-            if (!availableProvidersStr) {
-                // Something went wrong, clean up and return error
-                await redis.del(`request:${requestId}:processing`);
-                return {
-                    success: false,
-                    status: 'PROVIDERS_NOT_FOUND',
-                    message: 'Provider data not found'
-                };
-            }
+    //         if (!availableProvidersStr) {
+    //             // Something went wrong, clean up and return error
+    //             await redis.del(`request:${requestId}:processing`);
+    //             return {
+    //                 success: false,
+    //                 status: 'PROVIDERS_NOT_FOUND',
+    //                 message: 'Provider data not found'
+    //             };
+    //         }
 
-            const availableProviders = JSON.parse(availableProvidersStr) as ProviderWithDistance[];
-            const thisProvider = availableProviders.find(p => p.providerId === providerId);
+    //         const availableProviders = JSON.parse(availableProvidersStr) as ProviderWithDistance[];
+    //         const thisProvider = availableProviders.find(p => p.providerId === providerId);
 
-            if (!thisProvider) {
-                // Provider not found in available providers
-                await redis.del(`request:${requestId}:processing`);
-                return {
-                    success: false,
-                    status: 'PROVIDER_NOT_ELIGIBLE',
-                    message: 'Provider not eligible for this request'
-                };
-            }
+    //         if (!thisProvider) {
+    //             // Provider not found in available providers
+    //             await redis.del(`request:${requestId}:processing`);
+    //             return {
+    //                 success: false,
+    //                 status: 'PROVIDER_NOT_ELIGIBLE',
+    //                 message: 'Provider not eligible for this request'
+    //             };
+    //         }
 
-            // Get this provider's location for the request record
-            const coordinates = await getProviderLocationFromGeo(providerId);
+    //         // Get this provider's location for the request record
+    //         const coordinates = await getProviderLocationFromGeo(providerId);
 
-            // Generate OTP for verification
-            const otp = generateOTP();
-            const expiresAt = getExpiryTime();
+    //         // Generate OTP for verification
+    //         const otp = generateOTP();
+    //         const expiresAt = getExpiryTime();
 
-            // Create OTP record
-            const requestOTP = new RequestOTP({
-                serviceRequest: requestId,
-                provider: providerId,
-                requester: userId,
-                otp,
-                expiresAt
-            });
+    //         // Create OTP record
+    //         const requestOTP = new RequestOTP({
+    //             serviceRequest: requestId,
+    //             provider: providerId,
+    //             requester: userId,
+    //             otp,
+    //             expiresAt
+    //         });
 
-            await requestOTP.save();
+    //         await requestOTP.save();
 
-            // Get all providers who accepted for analytics
-            const acceptedProviders = await redis.get(`request:${requestId}:accepted_providers`);
-            let acceptedProvidersList = acceptedProviders ? JSON.parse(acceptedProviders) : [];
-            acceptedProvidersList.push({
-                providerId,
-                distance: thisProvider.distance,
-                timestamp: Date.now()
-            });
+    //         // Get all providers who accepted for analytics
+    //         const acceptedProviders = await redis.get(`request:${requestId}:accepted_providers`);
+    //         let acceptedProvidersList = acceptedProviders ? JSON.parse(acceptedProviders) : [];
+    //         acceptedProvidersList.push({
+    //             providerId,
+    //             distance: thisProvider.distance,
+    //             timestamp: Date.now()
+    //         });
 
-            // Update request status and clean up Redis
-            await Promise.all([
-                // Update service request in database
-                ServiceRequest.findByIdAndUpdate(
-                    requestId,
-                    {
-                        status: ServiceStatus.ACCEPTED,
-                        provider: providerId,
-                        searchAttempts: await redis.hget(`request:${requestId}`, 'attempts') || 0,
-                        prvLocation: coordinates ? {
-                            type: 'Point',
-                            coordinates: [coordinates.longitude, coordinates.latitude]
-                        } : undefined,
-                        otpGenerated: true,
-                        acceptedProviders: acceptedProvidersList
-                    }
-                ),
+    //         // Update request status and clean up Redis
+    //         await Promise.all([
+    //             // Update service request in database
+    //             ServiceRequest.findByIdAndUpdate(
+    //                 requestId,
+    //                 {
+    //                     status: ServiceStatus.ACCEPTED,
+    //                     provider: providerId,
+    //                     searchAttempts: await redis.hget(`request:${requestId}`, 'attempts') || 0,
+    //                     prvLocation: coordinates ? {
+    //                         type: 'Point',
+    //                         coordinates: [coordinates.longitude, coordinates.latitude]
+    //                     } : undefined,
+    //                     otpGenerated: true,
+    //                     acceptedProviders: acceptedProvidersList
+    //                 }
+    //             ),
 
-                // Clean up Redis keys
-                redis.multi()
-                    .hset(`request:${requestId}`, {
-                        status: ServiceStatus.ACCEPTED,
-                        currentProvider: providerId
-                    })
-                    .del(`request:${requestId}:timeout`)
-                    .del(`request:${requestId}:active_providers`)
-                    .set(`request:${requestId}:accepted_providers`, JSON.stringify(acceptedProvidersList))
-                    .expire(`request:${requestId}`, 3600) // Keep for 1 hour for reference
-                    .exec(),
+    //             // Clean up Redis keys
+    //             redis.multi()
+    //                 .hset(`request:${requestId}`, {
+    //                     status: ServiceStatus.ACCEPTED,
+    //                     currentProvider: providerId
+    //                 })
+    //                 .del(`request:${requestId}:timeout`)
+    //                 .del(`request:${requestId}:active_providers`)
+    //                 .set(`request:${requestId}:accepted_providers`, JSON.stringify(acceptedProvidersList))
+    //                 .expire(`request:${requestId}`, 3600) // Keep for 1 hour for reference
+    //                 .exec(),
 
-                // Notify requester that request was accepted
-                notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
+    //             // Notify requester that request was accepted
+    //             notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
 
-                // Notify provider that they got the request
-                notificationService().notifyProvider(providerId, 'request:accepted', requestId)
-            ]);
+    //             // Notify provider that they got the request
+    //             notificationService().notifyProvider(providerId, 'request:accepted', requestId)
+    //         ]);
 
-            // Notify all other active providers that the request is no longer available
-            await notifyOtherProvidersOfAcceptance(requestId, providerId);
+    //         // Notify all other active providers that the request is no longer available
+    //         await notifyOtherProvidersOfAcceptance(requestId, providerId);
 
-            return {
-                success: true,
-                status: 'ACCEPTED',
-                message: 'Request accepted successfully'
-            };
-        } catch (error) {
-            console.error("Error handling acceptance with priority:", error);
-            // Clean up lock in case of error
-            await redis.del(`request:${requestId}:processing`);
-            throw createAppError("Failed to process request acceptance");
-        }
-    };
-
-
+    //         return {
+    //             success: true,
+    //             status: 'ACCEPTED',
+    //             message: 'Request accepted successfully'
+    //         };
+    //     } catch (error) {
+    //         console.error("Error handling acceptance with priority:", error);
+    //         // Clean up lock in case of error
+    //         await redis.del(`request:${requestId}:processing`);
+    //         throw createAppError("Failed to process request acceptance");
+    //     }
+    // };
 
     // Notify other providers that the request has been accepted
     // const notifyOtherProvidersOfAcceptance = async (requestId: string, acceptedProviderId: string) => {
@@ -1378,49 +1368,49 @@ const requestService = () => {
     //     }
     // };
 
-    const notifyOtherProvidersOfAcceptance = async (requestId: string, acceptedProviderId: string) => {
-        try {
-            // First, get the set of active providers directly from Redis
-            // This is more reliable than using the available_providers list which might be outdated
-            const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
+    // const notifyOtherProvidersOfAcceptance = async (requestId: string, acceptedProviderId: string) => {
+    //     try {
+    //         // First, get the set of active providers directly from Redis
+    //         // This is more reliable than using the available_providers list which might be outdated
+    //         const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
 
-            if (!activeProviders || activeProviders.length === 0) {
-                console.log(`No active providers to notify for request ${requestId}`);
-                return;
-            }
+    //         if (!activeProviders || activeProviders.length === 0) {
+    //             console.log(`No active providers to notify for request ${requestId}`);
+    //             return;
+    //         }
 
-            console.log(`Notifying ${activeProviders.length - 1} other providers that request ${requestId} is no longer available`);
+    //         console.log(`Notifying ${activeProviders.length - 1} other providers that request ${requestId} is no longer available`);
 
-            // Create an array of notification promises for all active providers except the accepted one
-            const notificationPromises = activeProviders
-                .filter(providerId => providerId !== acceptedProviderId)
-                .map(providerId =>
-                    notificationService().notifyProvider(
-                        providerId,
-                        'request:unavailable',
-                        {
-                            requestId,
-                            message: 'This request has been accepted by another provider',
-                            status: 'UNAVAILABLE'
-                        }
-                    )
-                );
+    //         // Create an array of notification promises for all active providers except the accepted one
+    //         const notificationPromises = activeProviders
+    //             .filter(providerId => providerId !== acceptedProviderId)
+    //             .map(providerId =>
+    //                 notificationService().notifyProvider(
+    //                     providerId,
+    //                     'request:unavailable',
+    //                     {
+    //                         requestId,
+    //                         message: 'This request has been accepted by another provider',
+    //                         status: 'UNAVAILABLE'
+    //                     }
+    //                 )
+    //             );
 
-            // Wait for all notifications to be sent
-            if (notificationPromises.length > 0) {
-                await Promise.all(notificationPromises);
-                console.log(`Successfully notified ${notificationPromises.length} providers that request ${requestId} is unavailable`);
-            }
+    //         // Wait for all notifications to be sent
+    //         if (notificationPromises.length > 0) {
+    //             await Promise.all(notificationPromises);
+    //             console.log(`Successfully notified ${notificationPromises.length} providers that request ${requestId} is unavailable`);
+    //         }
 
-            // Remove all providers from the active set after notifying them
-            if (activeProviders.length > 0) {
-                await redis.del(`request:${requestId}:active_providers`);
-            }
-        } catch (error) {
-            console.error("Error notifying other providers:", error);
-            // Log error but don't throw - this is a non-critical operation
-        }
-    };
+    //         // Remove all providers from the active set after notifying them
+    //         if (activeProviders.length > 0) {
+    //             await redis.del(`request:${requestId}:active_providers`);
+    //         }
+    //     } catch (error) {
+    //         console.error("Error notifying other providers:", error);
+    //         // Log error but don't throw - this is a non-critical operation
+    //     }
+    // };
 
     // const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
 
