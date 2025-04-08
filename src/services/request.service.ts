@@ -19,6 +19,7 @@ const requestService = () => {
     }
 
     const COLLECTION_WINDOW_MS = 3000; // 3 seconds window to collect provider acceptances
+    let collectionExpiryInterval: NodeJS.Timeout | null = null;
 
     const generateOTP = (): string => {
         return Math.floor(1000 + Math.random() * 9000).toString();
@@ -223,6 +224,56 @@ const requestService = () => {
 
     // Broadcast request to all available providers simultaneously
 
+    // Check periodically for expired collection windows
+    const setupCollectionExpiryChecker = () => {
+        const checkInterval = 1000; // Check every 1 second
+
+        // Clear any existing interval
+        if (collectionExpiryInterval) {
+            clearInterval(collectionExpiryInterval);
+        }
+
+        // Set up new interval
+        collectionExpiryInterval = setInterval(async () => {
+            try {
+                // Get all keys matching the pattern for collection end markers
+                const keys = await redis.keys(`request:*:collection_end`);
+
+                if (keys && keys.length > 0) {
+                    console.log(`Found ${keys.length} collection windows that may need processing`);
+
+                    // Process each expired collection window
+                    for (const key of keys) {
+                        try {
+                            const requestId = key.split(':')[1];
+                            const status = await redis.hget(`request:${requestId}`, 'status');
+
+                            if (status === ServiceStatus.COLLECTION) {
+                                console.log(`Processing expired collection window for request ${requestId}`);
+                                const userId = await redis.hget(`request:${requestId}`, 'userId');
+
+                                if (userId) {
+                                    await processCollectedAcceptances(requestId, userId);
+                                } else {
+                                    console.error(`No userId found for request ${requestId}`);
+                                }
+                            }
+
+                            // Delete the key regardless of status to prevent reprocessing
+                            await redis.del(key);
+                        } catch (err) {
+                            console.error(`Error processing collection expiry for key ${key}:`, err);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking for expired collection windows:", error);
+            }
+        }, checkInterval);
+
+        return collectionExpiryInterval;
+    };
+
     const broadcastRequestToProviders = async (
         requestId: string,
         userId: string,
@@ -419,49 +470,20 @@ const requestService = () => {
     //     }
     // };
 
-    const handleNoProvidersAvailable = async (requestId: string, userId: string) => {
-        try {
-            // Get attempts count for record-keeping
-            const attempts = await redis.hget(`request:${requestId}`, 'attempts');
-
-            // Clean up Redis and update database
-            await Promise.all([
-                redis.multi()
-                    .del(`request:${requestId}`)
-                    .del(`request:${requestId}:available_providers`)
-                    .del(`request:${requestId}:active_providers`)
-                    .del(`request:${requestId}:acceptances`)
-                    .del(`request:${requestId}:timeout`)
-                    .exec(),
-
-                ServiceRequest.findByIdAndUpdate(requestId, {
-                    status: ServiceStatus.NO_PROVIDER,
-                    searchAttempts: attempts || 0
-                })
-            ]);
-
-            // Notify requester that no providers accepted
-            await notificationService().notifyRequester(userId, 'NO_PROVIDER', requestId);
-
-            return true;
-        } catch (error) {
-            console.error("Error handling no providers available:", error);
-            throw createAppError("Failed to handle no providers case");
-        }
-    };
-
-
     // Handle provider response (accept/reject)
     const handleProviderResponse = async (requestId: string, providerId: string, accepted: boolean, userId: string) => {
         try {
+            console.log(`Provider ${providerId} responding to request ${requestId}, accepted: ${accepted}`);
             // Check if request is still active and this provider is eligible
             const [status, isActiveProvider] = await Promise.all([
                 redis.hget(`request:${requestId}`, 'status'),
                 redis.sismember(`request:${requestId}:active_providers`, providerId)
             ]);
 
+            console.log(`Request ${requestId} status: ${status}, Provider is active: ${isActiveProvider}`);
             // Verify the request is in SEARCHING or COLLECTION state
             if (status !== ServiceStatus.SEARCHING && status !== ServiceStatus.COLLECTION) {
+                console.log(`Request ${requestId} is in invalid state: ${status}`);
                 return {
                     success: false,
                     status: 'REQUEST_ALREADY_HANDLED',
@@ -471,6 +493,7 @@ const requestService = () => {
 
             // Verify this provider is eligible to respond
             if (!isActiveProvider) {
+                console.log(`Provider ${providerId} is not authorized for request ${requestId}`);
                 return {
                     success: false,
                     status: 'NOT_AUTHORIZED',
@@ -480,16 +503,20 @@ const requestService = () => {
 
             if (accepted) {
                 // Provider accepted the request
+                console.log(`Provider ${providerId} accepted request ${requestId}, handling acceptance`);
                 return await handleAcceptance(requestId, providerId, userId);
             } else {
                 // Provider rejected - remove from active providers
+                console.log(`Provider ${providerId} rejected request ${requestId}`);
                 await redis.srem(`request:${requestId}:active_providers`, providerId);
 
                 // Check if any providers remain active
                 const remainingProviders = await redis.scard(`request:${requestId}:active_providers`);
+                console.log(`${remainingProviders} providers still active for request ${requestId}`);
 
                 if (remainingProviders === 0) {
                     // No more active providers, handle no providers case
+                    console.log(`No remaining providers for request ${requestId}, handling no providers available`);
                     await handleNoProvidersAvailable(requestId, userId);
                 }
 
@@ -706,22 +733,20 @@ const requestService = () => {
     // };
 
     // Handle provider acceptance with a collection window for distance-based prioritization
+
     const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
         try {
-            // Start a Redis transaction to safely check and update state
-            const result = await redis.multi()
-                .hget(`request:${requestId}`, 'status')
-                .exec();
+            console.log(`Handling acceptance for request ${requestId} by provider ${providerId}`);
 
-            if (!result) {
-                throw createAppError("Redis transaction failed");
-            }
-
-            const status = result[0][1] as string | null;
+            // Get current request status
+            const status = await redis.hget(`request:${requestId}`, 'status');
+            console.log(`Current status for request ${requestId}: ${status}`);
 
             // If already in COLLECTION state, just add this provider to the acceptances
             if (status === ServiceStatus.COLLECTION) {
+                console.log(`Request ${requestId} already in COLLECTION state, adding provider ${providerId}`);
                 await addProviderAcceptance(requestId, providerId);
+
                 return {
                     success: true,
                     status: 'PROCESSING',
@@ -732,14 +757,32 @@ const requestService = () => {
             // If still in SEARCHING state, transition to COLLECTION state to start gathering acceptances
             if (status === ServiceStatus.SEARCHING) {
                 // Try to transition to COLLECTION state (only first provider will succeed)
+                console.log(`Attempting to transition request ${requestId} to COLLECTION state`);
                 const transitioned = await redis.hsetnx(`request:${requestId}`, 'status', ServiceStatus.COLLECTION);
 
                 if (transitioned) {
-                    // First provider to accept - create the acceptances list and add this provider
+                    console.log(`Successfully transitioned request ${requestId} to COLLECTION state`);
+
+                    // First provider to accept - add this provider and schedule processing
                     await addProviderAcceptance(requestId, providerId);
 
                     // Set a timer to process collected acceptances after the collection window
-                    setTimeout(() => processCollectedAcceptances(requestId, userId), COLLECTION_WINDOW_MS);
+                    // IMPORTANT: Use a direct function call for environments where setTimeout might be unreliable
+                    // We'll implement both approaches for reliability
+                    console.log(`Setting up collection window of ${COLLECTION_WINDOW_MS}ms for request ${requestId}`);
+
+                    // Method 1: Use setTimeout
+                    setTimeout(async () => {
+                        try {
+                            console.log(`Collection window ended for request ${requestId}, processing acceptances`);
+                            await processCollectedAcceptances(requestId, userId);
+                        } catch (err) {
+                            console.error(`Error in setTimeout callback for request ${requestId}:`, err);
+                        }
+                    }, COLLECTION_WINDOW_MS);
+
+                    // Method 2: Also set a Redis key with expiry for double safety
+                    await redis.set(`request:${requestId}:collection_end`, 'true', 'PX', COLLECTION_WINDOW_MS);
 
                     return {
                         success: true,
@@ -748,8 +791,11 @@ const requestService = () => {
                     };
                 } else {
                     // Another provider already transitioned the state
+                    console.log(`Request ${requestId} was already transitioned to COLLECTION state by another provider`);
+
                     // Just add this provider to the acceptances list
                     await addProviderAcceptance(requestId, providerId);
+
                     return {
                         success: true,
                         status: 'PROCESSING',
@@ -759,13 +805,14 @@ const requestService = () => {
             }
 
             // Request is in some other state that doesn't allow acceptance
+            console.log(`Request ${requestId} is in invalid state for acceptance: ${status}`);
             return {
                 success: false,
                 status: 'INVALID_STATE',
                 message: 'This request is no longer available'
             };
         } catch (error) {
-            console.error("Error handling acceptance:", error);
+            console.error(`Error handling acceptance for request ${requestId}:`, error);
             throw createAppError("Failed to process acceptance");
         }
     };
@@ -773,10 +820,13 @@ const requestService = () => {
     // Add a provider to the acceptances list with their distance
     const addProviderAcceptance = async (requestId: string, providerId: string) => {
         try {
+            console.log(`Adding provider ${providerId} to acceptances for request ${requestId}`);
+
             // Get provider's distance from available providers list
             const availableProvidersStr = await redis.get(`request:${requestId}:available_providers`);
 
             if (!availableProvidersStr) {
+                console.error(`Available providers data not found for request ${requestId}`);
                 throw createAppError('Provider data not found');
             }
 
@@ -784,6 +834,7 @@ const requestService = () => {
             const provider = availableProviders.find(p => p.providerId === providerId);
 
             if (!provider) {
+                console.error(`Provider ${providerId} not found in available providers for request ${requestId}`);
                 throw createAppError('Provider not found in available providers');
             }
 
@@ -794,17 +845,17 @@ const requestService = () => {
                 timestamp: Date.now()
             };
 
-            // Add to acceptances list
-            await redis.sadd(
-                `request:${requestId}:acceptances`,
-                JSON.stringify(acceptance)
-            );
+            // Add to acceptances list - make sure the key exists with a reasonable expiry
+            await redis.multi()
+                .sadd(`request:${requestId}:acceptances`, JSON.stringify(acceptance))
+                .expire(`request:${requestId}:acceptances`, 60) // 1 minute TTL
+                .exec();
 
-            console.log(`Added provider ${providerId} to acceptances with distance ${provider.distance}`);
+            console.log(`Successfully added provider ${providerId} to acceptances with distance ${provider.distance}`);
 
             return true;
         } catch (error) {
-            console.error("Error adding provider acceptance:", error);
+            console.error(`Error adding provider acceptance for request ${requestId}:`, error);
             throw error;
         }
     };
@@ -812,29 +863,53 @@ const requestService = () => {
     // Process all collected acceptances and select the provider with the shortest distance
     const processCollectedAcceptances = async (requestId: string, userId: string) => {
         try {
+            console.log(`Processing collected acceptances for request ${requestId}`);
+
             // Check if request is still in COLLECTION state
             const status = await redis.hget(`request:${requestId}`, 'status');
+            console.log(`Current status for request ${requestId} when processing acceptances: ${status}`);
 
             if (status !== ServiceStatus.COLLECTION) {
-                console.log(`Request ${requestId} is no longer in COLLECTION state, current state: ${status}`);
+                console.log(`Request ${requestId} is no longer in COLLECTION state, skipping processing`);
                 return false;
             }
 
             // Get all collected acceptances
             const acceptancesSet = await redis.smembers(`request:${requestId}:acceptances`);
+            console.log(`Found ${acceptancesSet?.length || 0} acceptances for request ${requestId}`);
 
             if (!acceptancesSet || acceptancesSet.length === 0) {
-                console.log(`No acceptances collected for request ${requestId}`);
+                console.log(`No acceptances collected for request ${requestId}, handling no providers`);
+                await handleNoProvidersAvailable(requestId, userId);
                 return false;
             }
 
             // Parse the acceptances
-            const acceptances: ProviderAcceptance[] = acceptancesSet.map(a => JSON.parse(a));
+            const acceptances: ProviderAcceptance[] = [];
+            for (const acceptanceStr of acceptancesSet) {
+                try {
+                    acceptances.push(JSON.parse(acceptanceStr));
+                } catch (err) {
+                    console.error(`Error parsing acceptance JSON for request ${requestId}:`, err);
+                    // Continue with other acceptances
+                }
+            }
+
+            if (acceptances.length === 0) {
+                console.log(`No valid acceptances found for request ${requestId}, handling no providers`);
+                await handleNoProvidersAvailable(requestId, userId);
+                return false;
+            }
+
+            console.log(`Parsed ${acceptances.length} valid acceptances for request ${requestId}`);
 
             // Find the provider with the shortest distance
-            const nearestProvider = acceptances.reduce((nearest, current) => {
-                return current.distance < nearest.distance ? current : nearest;
-            }, acceptances[0]);
+            let nearestProvider = acceptances[0];
+            for (const acceptance of acceptances) {
+                if (acceptance.distance < nearestProvider.distance) {
+                    nearestProvider = acceptance;
+                }
+            }
 
             console.log(`Selected nearest provider ${nearestProvider.providerId} with distance ${nearestProvider.distance} for request ${requestId}`);
 
@@ -843,10 +918,15 @@ const requestService = () => {
 
             return true;
         } catch (error) {
-            console.error("Error processing collected acceptances:", error);
+            console.error(`Error processing collected acceptances for request ${requestId}:`, error);
 
             // If there's an error, try to reset the state to give providers another chance
-            await redis.hset(`request:${requestId}`, 'status', ServiceStatus.SEARCHING);
+            try {
+                await redis.hset(`request:${requestId}`, 'status', ServiceStatus.SEARCHING);
+                console.log(`Reset request ${requestId} to SEARCHING state due to error`);
+            } catch (err) {
+                console.error(`Failed to reset state for request ${requestId}:`, err);
+            }
 
             throw error;
         }
@@ -859,9 +939,9 @@ const requestService = () => {
         userId: string,
         allAcceptances: ProviderAcceptance[]
     ) => {
-        console.log("In finalize response", requestId, providerId, userId);
-        
         try {
+            console.log(`Finalizing acceptance for request ${requestId} with provider ${providerId}`);
+
             // Update request status to ACCEPTED
             await redis.hset(`request:${requestId}`, {
                 'status': ServiceStatus.ACCEPTED,
@@ -869,11 +949,20 @@ const requestService = () => {
             });
 
             // Get provider's current location
-            const coordinates = await getProviderLocationFromGeo(providerId);
+            console.log(`Getting location for provider ${providerId}`);
+            let coordinates;
+            try {
+                coordinates = await getProviderLocationFromGeo(providerId);
+                console.log(`Provider ${providerId} coordinates:`, coordinates);
+            } catch (err) {
+                console.error(`Error getting provider location for ${providerId}:`, err);
+                // Continue without coordinates if we can't get them
+            }
 
             // Generate OTP for verification
             const otp = generateOTP();
             const expiresAt = getExpiryTime();
+            console.log(`Generated OTP ${otp} for request ${requestId}`);
 
             // Create OTP record
             const requestOTP = new RequestOTP({
@@ -885,6 +974,7 @@ const requestService = () => {
             });
 
             await requestOTP.save();
+            console.log(`Saved OTP record for request ${requestId}`);
 
             // Store all acceptances for analytics
             await redis.set(
@@ -895,7 +985,9 @@ const requestService = () => {
             );
 
             // Update database and clean up Redis in parallel
-            await Promise.all([
+            console.log(`Updating database and sending notifications for request ${requestId}`);
+
+            const updatePromises = [
                 // Update service request in database
                 ServiceRequest.findByIdAndUpdate(
                     requestId,
@@ -916,23 +1008,74 @@ const requestService = () => {
                 redis.multi()
                     .del(`request:${requestId}:timeout`)
                     .del(`request:${requestId}:acceptances`)
+                    .del(`request:${requestId}:collection_end`)
                     .expire(`request:${requestId}`, 3600) // Keep for 1 hour
                     .exec(),
 
+                // Notify the selected provider they got the request
+                notificationService().notifyProvider(
+                    providerId,
+                    'request:accepted',
+                    {
+                        requestId,
+                        userId,
+                        otp
+                    }
+                ),
+
                 // Notify the requester that their request was accepted
-                Promise.all([
-                    notificationService().notifyRequester(userId, 'ACCEPTED', requestId),
-                    notificationService().notifyProvider(providerId, 'request:accepted', requestId)
-                ])
-            ]);
+                notificationService().notifyRequester(
+                    userId,
+                    'ACCEPTED',
+                    requestId
+                )
+            ];
+
+            await Promise.all(updatePromises);
+            console.log(`Successfully updated database and sent notifications for request ${requestId}`);
 
             // Notify all other providers their acceptances were declined
             await notifyOtherProviders(requestId, providerId, allAcceptances);
 
             return true;
         } catch (error) {
-            console.error("Error finalizing provider acceptance:", error);
+            console.error(`Error finalizing provider acceptance for request ${requestId}:`, error);
             throw error;
+        }
+    };
+
+    const handleNoProvidersAvailable = async (requestId: string, userId: string) => {
+        try {
+            console.log(`Handling no providers available for request ${requestId}`);
+
+            // Get attempts count for record-keeping
+            const attempts = await redis.hget(`request:${requestId}`, 'attempts');
+
+            // Clean up Redis and update database
+            await Promise.all([
+                redis.multi()
+                    .del(`request:${requestId}`)
+                    .del(`request:${requestId}:available_providers`)
+                    .del(`request:${requestId}:active_providers`)
+                    .del(`request:${requestId}:acceptances`)
+                    .del(`request:${requestId}:collection_end`)
+                    .del(`request:${requestId}:timeout`)
+                    .exec(),
+
+                ServiceRequest.findByIdAndUpdate(requestId, {
+                    status: ServiceStatus.NO_PROVIDER,
+                    searchAttempts: attempts || 0
+                })
+            ]);
+
+            // Notify requester that no providers accepted
+            await notificationService().notifyRequester(userId, 'NO_PROVIDER', requestId);
+            console.log(`Notified requester ${userId} that no providers accepted request ${requestId}`);
+
+            return true;
+        } catch (error) {
+            console.error(`Error handling no providers available for request ${requestId}:`, error);
+            throw createAppError("Failed to handle no providers case");
         }
     };
 
@@ -1006,6 +1149,47 @@ const requestService = () => {
             // Non-critical operation, don't throw
         }
     };
+
+    // const setupCollectionExpiryChecker = () => {
+    //     const checkInterval = 1000; // Check every 1 second
+
+    //     setInterval(async () => {
+    //         try {
+    //             // Get all keys matching the pattern for collection end markers
+    //             const keys = await redis.keys(`request:*:collection_end`);
+
+    //             if (keys && keys.length > 0) {
+    //                 console.log(`Found ${keys.length} collection windows that may need processing`);
+
+    //                 // Process each expired collection window
+    //                 for (const key of keys) {
+    //                     try {
+    //                         const requestId = key.split(':')[1];
+    //                         const status = await redis.hget(`request:${requestId}`, 'status');
+
+    //                         if (status === ServiceStatus.COLLECTION) {
+    //                             console.log(`Processing expired collection window for request ${requestId}`);
+    //                             const userId = await redis.hget(`request:${requestId}`, 'userId');
+
+    //                             if (userId) {
+    //                                 await processCollectedAcceptances(requestId, userId);
+    //                             } else {
+    //                                 console.error(`No userId found for request ${requestId}`);
+    //                             }
+    //                         }
+
+    //                         // Delete the key regardless of status to prevent reprocessing
+    //                         await redis.del(key);
+    //                     } catch (err) {
+    //                         console.error(`Error processing collection expiry for key ${key}:`, err);
+    //                     }
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.error("Error checking for expired collection windows:", error);
+    //         }
+    //     }, checkInterval);
+    // };
 
     // const notifyOtherProvidersOfUnavailability = async (requestId: string, acceptedProviderId: string) => {
     //     try {
@@ -1634,6 +1818,8 @@ const requestService = () => {
             throw error;
         }
     }
+
+    setupCollectionExpiryChecker();
 
     return {
         createNewServiceRequest,
