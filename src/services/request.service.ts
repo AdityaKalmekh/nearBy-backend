@@ -734,9 +734,96 @@ const requestService = () => {
 
     // Handle provider acceptance with a collection window for distance-based prioritization
 
+    // const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
+    //     try {
+    //         console.log(`Handling acceptance for request ${requestId} by provider ${providerId}`);
+
+    //         // Get current request status
+    //         const status = await redis.hget(`request:${requestId}`, 'status');
+    //         console.log(`Current status for request ${requestId}: ${status}`);
+
+    //         // If already in COLLECTION state, just add this provider to the acceptances
+    //         if (status === ServiceStatus.COLLECTION) {
+    //             console.log(`Request ${requestId} already in COLLECTION state, adding provider ${providerId}`);
+    //             await addProviderAcceptance(requestId, providerId);
+
+    //             return {
+    //                 success: true,
+    //                 status: 'PROCESSING',
+    //                 message: 'Your acceptance is being processed'
+    //             };
+    //         }
+
+    //         // If still in SEARCHING state, transition to COLLECTION state to start gathering acceptances
+    //         if (status === ServiceStatus.SEARCHING) {
+    //             // Try to transition to COLLECTION state (only first provider will succeed)
+    //             console.log(`Attempting to transition request ${requestId} to COLLECTION state`);
+    //             const transitioned = await redis.hsetnx(`request:${requestId}`, 'status', ServiceStatus.COLLECTION);
+
+    //             if (transitioned) {
+    //                 console.log(`Successfully transitioned request ${requestId} to COLLECTION state`);
+
+    //                 // First provider to accept - add this provider and schedule processing
+    //                 await addProviderAcceptance(requestId, providerId);
+
+    //                 // Set a timer to process collected acceptances after the collection window
+    //                 // IMPORTANT: Use a direct function call for environments where setTimeout might be unreliable
+    //                 // We'll implement both approaches for reliability
+    //                 console.log(`Setting up collection window of ${COLLECTION_WINDOW_MS}ms for request ${requestId}`);
+
+    //                 // Method 1: Use setTimeout
+    //                 setTimeout(async () => {
+    //                     try {
+    //                         console.log(`Collection window ended for request ${requestId}, processing acceptances`);
+    //                         await processCollectedAcceptances(requestId, userId);
+    //                     } catch (err) {
+    //                         console.error(`Error in setTimeout callback for request ${requestId}:`, err);
+    //                     }
+    //                 }, COLLECTION_WINDOW_MS);
+
+    //                 // Method 2: Also set a Redis key with expiry for double safety
+    //                 await redis.set(`request:${requestId}:collection_end`, 'true', 'PX', COLLECTION_WINDOW_MS);
+
+    //                 return {
+    //                     success: true,
+    //                     status: 'PROCESSING',
+    //                     message: 'Your acceptance is being processed'
+    //                 };
+    //             } else {
+    //                 // Another provider already transitioned the state
+    //                 console.log(`Request ${requestId} was already transitioned to COLLECTION state by another provider`);
+
+    //                 // Just add this provider to the acceptances list
+    //                 await addProviderAcceptance(requestId, providerId);
+
+    //                 return {
+    //                     success: true,
+    //                     status: 'PROCESSING',
+    //                     message: 'Your acceptance is being processed'
+    //                 };
+    //             }
+    //         }
+
+    //         // Request is in some other state that doesn't allow acceptance
+    //         console.log(`Request ${requestId} is in invalid state for acceptance: ${status}`);
+    //         return {
+    //             success: false,
+    //             status: 'INVALID_STATE',
+    //             message: 'This request is no longer available'
+    //         };
+    //     } catch (error) {
+    //         console.error(`Error handling acceptance for request ${requestId}:`, error);
+    //         throw createAppError("Failed to process acceptance");
+    //     }
+    // };
+
     const handleAcceptance = async (requestId: string, providerId: string, userId: string) => {
         try {
             console.log(`Handling acceptance for request ${requestId} by provider ${providerId}`);
+
+            // IMPORTANT: Use a watch-multi-exec pattern to ensure atomic operations
+            // Watch the request status key for changes
+            await redis.watch(`request:${requestId}`);
 
             // Get current request status
             const status = await redis.hget(`request:${requestId}`, 'status');
@@ -744,7 +831,10 @@ const requestService = () => {
 
             // If already in COLLECTION state, just add this provider to the acceptances
             if (status === ServiceStatus.COLLECTION) {
-                console.log(`Request ${requestId} already in COLLECTION state, adding provider ${providerId}`);
+                // Unwatch since we're not doing a transaction
+                await redis.unwatch();
+
+                console.log(`Request ${requestId} is in COLLECTION state, adding provider ${providerId}`);
                 await addProviderAcceptance(requestId, providerId);
 
                 return {
@@ -754,69 +844,84 @@ const requestService = () => {
                 };
             }
 
-            // If still in SEARCHING state, transition to COLLECTION state to start gathering acceptances
+            // If in SEARCHING state, try to transition to COLLECTION with a transaction
             if (status === ServiceStatus.SEARCHING) {
-                // Try to transition to COLLECTION state (only first provider will succeed)
                 console.log(`Attempting to transition request ${requestId} to COLLECTION state`);
-                const transitioned = await redis.hsetnx(`request:${requestId}`, 'status', ServiceStatus.COLLECTION);
 
-                if (transitioned) {
-                    console.log(`Successfully transitioned request ${requestId} to COLLECTION state`);
+                // Create a transaction to change the status atomically
+                const tx = redis.multi();
+                tx.hset(`request:${requestId}`, 'status', ServiceStatus.COLLECTION);
+                tx.hset(`request:${requestId}`, 'userId', userId);
 
-                    // First provider to accept - add this provider and schedule processing
-                    await addProviderAcceptance(requestId, providerId);
+                // Execute the transaction - this will fail if the watched key changed
+                const result = await tx.exec();
 
-                    // Set a timer to process collected acceptances after the collection window
-                    // IMPORTANT: Use a direct function call for environments where setTimeout might be unreliable
-                    // We'll implement both approaches for reliability
-                    console.log(`Setting up collection window of ${COLLECTION_WINDOW_MS}ms for request ${requestId}`);
+                // Check if transaction succeeded
+                if (!result || result.length === 0) {
+                    console.log(`Transaction failed for request ${requestId}, status likely changed`);
+                    await redis.unwatch();
 
-                    // Method 1: Use setTimeout
-                    setTimeout(async () => {
-                        try {
-                            console.log(`Collection window ended for request ${requestId}, processing acceptances`);
-                            await processCollectedAcceptances(requestId, userId);
-                        } catch (err) {
-                            console.error(`Error in setTimeout callback for request ${requestId}:`, err);
-                        }
-                    }, COLLECTION_WINDOW_MS);
-
-                    // Method 2: Also set a Redis key with expiry for double safety
-                    await redis.set(`request:${requestId}:collection_end`, 'true', 'PX', COLLECTION_WINDOW_MS);
-
-                    return {
-                        success: true,
-                        status: 'PROCESSING',
-                        message: 'Your acceptance is being processed'
-                    };
-                } else {
-                    // Another provider already transitioned the state
-                    console.log(`Request ${requestId} was already transitioned to COLLECTION state by another provider`);
-
-                    // Just add this provider to the acceptances list
-                    await addProviderAcceptance(requestId, providerId);
-
-                    return {
-                        success: true,
-                        status: 'PROCESSING',
-                        message: 'Your acceptance is being processed'
-                    };
+                    // Retry the operation since status likely changed to COLLECTION
+                    return await handleAcceptance(requestId, providerId, userId);
                 }
+
+                // Transaction succeeded, we are the first to transition
+                console.log(`Successfully transitioned request ${requestId} to COLLECTION state`);
+
+                // Add this provider to acceptances
+                await addProviderAcceptance(requestId, providerId);
+
+                // Set a timer to process collected acceptances after collection window
+                console.log(`Setting up collection window of ${COLLECTION_WINDOW_MS}ms for request ${requestId}`);
+
+                // Method 1: Use setTimeout with explicit error handling
+                setTimeout(async () => {
+                    try {
+                        console.log(`Collection window ended for request ${requestId}, processing acceptances`);
+                        const processed = await processCollectedAcceptances(requestId, userId);
+                        console.log(`Collection processing completed for request ${requestId}, result: ${processed}`);
+                    } catch (err) {
+                        console.error(`Error in setTimeout callback for request ${requestId}:`, err);
+                    }
+                }, COLLECTION_WINDOW_MS);
+
+                // Method 2: Also set a Redis key with expiry as a backup mechanism
+                await redis.set(
+                    `request:${requestId}:collection_end`,
+                    'true',
+                    'PX',
+                    COLLECTION_WINDOW_MS + 1000 // Add 1 second buffer
+                );
+
+                return {
+                    success: true,
+                    status: 'PROCESSING',
+                    message: 'Your acceptance is being processed'
+                };
+            } else {
+                // Unwatch since we're not doing a transaction
+                await redis.unwatch();
+
+                // Request is in some other state that doesn't allow acceptance
+                console.log(`Request ${requestId} is in invalid state for acceptance: ${status}`);
+                return {
+                    success: false,
+                    status: 'INVALID_STATE',
+                    message: 'This request is no longer available'
+                };
+            }
+        } catch (error) {
+            // Make sure to unwatch in case of errors
+            try {
+                await redis.unwatch();
+            } catch (e) {
+                // Ignore error from unwatch
             }
 
-            // Request is in some other state that doesn't allow acceptance
-            console.log(`Request ${requestId} is in invalid state for acceptance: ${status}`);
-            return {
-                success: false,
-                status: 'INVALID_STATE',
-                message: 'This request is no longer available'
-            };
-        } catch (error) {
             console.error(`Error handling acceptance for request ${requestId}:`, error);
             throw createAppError("Failed to process acceptance");
         }
     };
-
     // Add a provider to the acceptances list with their distance
     const addProviderAcceptance = async (requestId: string, providerId: string) => {
         try {
@@ -861,9 +966,94 @@ const requestService = () => {
     };
 
     // Process all collected acceptances and select the provider with the shortest distance
+    // const processCollectedAcceptances = async (requestId: string, userId: string) => {
+    //     try {
+    //         console.log(`Processing collected acceptances for request ${requestId}`);
+
+    //         // Check if request is still in COLLECTION state
+    //         const status = await redis.hget(`request:${requestId}`, 'status');
+    //         console.log(`Current status for request ${requestId} when processing acceptances: ${status}`);
+
+    //         if (status !== ServiceStatus.COLLECTION) {
+    //             console.log(`Request ${requestId} is no longer in COLLECTION state, skipping processing`);
+    //             return false;
+    //         }
+
+    //         // Get all collected acceptances
+    //         const acceptancesSet = await redis.smembers(`request:${requestId}:acceptances`);
+    //         console.log(`Found ${acceptancesSet?.length || 0} acceptances for request ${requestId}`);
+
+    //         if (!acceptancesSet || acceptancesSet.length === 0) {
+    //             console.log(`No acceptances collected for request ${requestId}, handling no providers`);
+    //             await handleNoProvidersAvailable(requestId, userId);
+    //             return false;
+    //         }
+
+    //         // Parse the acceptances
+    //         const acceptances: ProviderAcceptance[] = [];
+    //         for (const acceptanceStr of acceptancesSet) {
+    //             try {
+    //                 acceptances.push(JSON.parse(acceptanceStr));
+    //             } catch (err) {
+    //                 console.error(`Error parsing acceptance JSON for request ${requestId}:`, err);
+    //                 // Continue with other acceptances
+    //             }
+    //         }
+
+    //         if (acceptances.length === 0) {
+    //             console.log(`No valid acceptances found for request ${requestId}, handling no providers`);
+    //             await handleNoProvidersAvailable(requestId, userId);
+    //             return false;
+    //         }
+
+    //         console.log(`Parsed ${acceptances.length} valid acceptances for request ${requestId}`);
+
+    //         // Find the provider with the shortest distance
+    //         let nearestProvider = acceptances[0];
+    //         for (const acceptance of acceptances) {
+    //             if (acceptance.distance < nearestProvider.distance) {
+    //                 nearestProvider = acceptance;
+    //             }
+    //         }
+
+    //         console.log(`Selected nearest provider ${nearestProvider.providerId} with distance ${nearestProvider.distance} for request ${requestId}`);
+
+    //         // Proceed with accepting this provider
+    //         await finalizeProviderAcceptance(requestId, nearestProvider.providerId, userId, acceptances);
+
+    //         return true;
+    //     } catch (error) {
+    //         console.error(`Error processing collected acceptances for request ${requestId}:`, error);
+
+    //         // If there's an error, try to reset the state to give providers another chance
+    //         try {
+    //             await redis.hset(`request:${requestId}`, 'status', ServiceStatus.SEARCHING);
+    //             console.log(`Reset request ${requestId} to SEARCHING state due to error`);
+    //         } catch (err) {
+    //             console.error(`Failed to reset state for request ${requestId}:`, err);
+    //         }
+
+    //         throw error;
+    //     }
+    // };
+
     const processCollectedAcceptances = async (requestId: string, userId: string) => {
         try {
             console.log(`Processing collected acceptances for request ${requestId}`);
+
+            // Use a lock to prevent multiple processes from handling the same request
+            const lockAcquired = await redis.set(
+                `request:${requestId}:processing_lock`,
+                '1',
+                'EX',
+                10,
+                'NX' // 10 second lock
+            );
+
+            if (!lockAcquired) {
+                console.log(`Another process is already handling acceptances for request ${requestId}`);
+                return false;
+            }
 
             // Check if request is still in COLLECTION state
             const status = await redis.hget(`request:${requestId}`, 'status');
@@ -871,6 +1061,7 @@ const requestService = () => {
 
             if (status !== ServiceStatus.COLLECTION) {
                 console.log(`Request ${requestId} is no longer in COLLECTION state, skipping processing`);
+                await redis.del(`request:${requestId}:processing_lock`);
                 return false;
             }
 
@@ -880,6 +1071,7 @@ const requestService = () => {
 
             if (!acceptancesSet || acceptancesSet.length === 0) {
                 console.log(`No acceptances collected for request ${requestId}, handling no providers`);
+                await redis.del(`request:${requestId}:processing_lock`);
                 await handleNoProvidersAvailable(requestId, userId);
                 return false;
             }
@@ -888,20 +1080,20 @@ const requestService = () => {
             const acceptances: ProviderAcceptance[] = [];
             for (const acceptanceStr of acceptancesSet) {
                 try {
-                    acceptances.push(JSON.parse(acceptanceStr));
+                    const acceptance = JSON.parse(acceptanceStr);
+                    acceptances.push(acceptance);
+                    console.log(`Parsed acceptance: Provider ${acceptance.providerId}, Distance ${acceptance.distance}`);
                 } catch (err) {
                     console.error(`Error parsing acceptance JSON for request ${requestId}:`, err);
-                    // Continue with other acceptances
                 }
             }
 
             if (acceptances.length === 0) {
                 console.log(`No valid acceptances found for request ${requestId}, handling no providers`);
+                await redis.del(`request:${requestId}:processing_lock`);
                 await handleNoProvidersAvailable(requestId, userId);
                 return false;
             }
-
-            console.log(`Parsed ${acceptances.length} valid acceptances for request ${requestId}`);
 
             // Find the provider with the shortest distance
             let nearestProvider = acceptances[0];
@@ -916,9 +1108,19 @@ const requestService = () => {
             // Proceed with accepting this provider
             await finalizeProviderAcceptance(requestId, nearestProvider.providerId, userId, acceptances);
 
+            // Release the lock
+            await redis.del(`request:${requestId}:processing_lock`);
+
             return true;
         } catch (error) {
             console.error(`Error processing collected acceptances for request ${requestId}:`, error);
+
+            // Release the lock in case of error
+            try {
+                await redis.del(`request:${requestId}:processing_lock`);
+            } catch (e) {
+                // Ignore error from lock release
+            }
 
             // If there's an error, try to reset the state to give providers another chance
             try {
