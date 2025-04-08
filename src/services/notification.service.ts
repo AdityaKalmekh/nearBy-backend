@@ -6,7 +6,8 @@ export function notificationService() {
         // 'new:request'
         const isOnline = socketServer.isProviderOnline(providerId);
         socketServer.emitToProvider(providerId, event, data);
-
+        console.log("Notify provider is called");
+    
         if (!isOnline) {
             await sendPushNotification(providerId, 'New Request Available');
         }
