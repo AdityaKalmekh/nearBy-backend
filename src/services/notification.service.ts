@@ -3,11 +3,13 @@ import { socketServer } from "../main";
 
 export function notificationService() {
     const notifyProvider = async (providerId: string, event: string, data: any) => {
-        // 'new:request'
+
+        if (event === 'request:unavailable') {
+            console.log(`${providerId} is unavailable`);
+
+        }
         const isOnline = socketServer.isProviderOnline(providerId);
         socketServer.emitToProvider(providerId, event, data);
-        console.log("Notify provider is called");
-    
         if (!isOnline) {
             await sendPushNotification(providerId, 'New Request Available');
         }
