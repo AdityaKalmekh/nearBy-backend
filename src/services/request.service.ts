@@ -718,64 +718,130 @@ const requestService = () => {
     };
 
     // Notify all other providers who accepted that they didn't get the request
+    // const notifyOtherProviders = async (
+    //     requestId: string,
+    //     acceptedProviderId: string,
+    //     allAcceptances: ProviderAcceptance[]
+    // ) => {
+    //     try {
+    //         // Get all providers who accepted except the chosen one
+    //         const otherProviders = allAcceptances
+    //             .filter(a => a.providerId !== acceptedProviderId)
+    //             .map(a => a.providerId);
+
+    //         if (otherProviders.length === 0) {
+    //             console.log(`No other providers to notify for request ${requestId}`);
+    //             return;
+    //         }
+
+    //         console.log(`Notifying ${otherProviders.length} other providers that request ${requestId} was assigned to another provider`);
+
+    //         // Send notifications to all other providers who accepted
+    //         const notificationPromises = otherProviders.map(providerId =>
+    //             notificationService().notifyProvider(
+    //                 providerId,
+    //                 'request:unavailable',    
+    //                 requestId
+    //             )
+    //         );
+
+    //         await Promise.all(notificationPromises);
+
+    //         // Also notify any remaining active providers who haven't yet responded
+    //         const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
+
+    //         if (activeProviders && activeProviders.length > 0) {
+    //             const remainingProviders = activeProviders.filter(pid =>
+    //                 pid !== acceptedProviderId && !otherProviders.includes(pid)
+    //             );
+
+    //             if (remainingProviders.length > 0) {
+    //                 console.log(`Notifying ${remainingProviders.length} remaining active providers that request ${requestId} is no longer available`);
+
+    //                 const remainingNotifications = remainingProviders.map(providerId =>
+    //                     notificationService().notifyProvider(
+    //                         providerId,
+    //                         'request:unavailable',
+    //                         requestId
+    //                     )
+    //                 );
+
+    //                 await Promise.all(remainingNotifications);
+    //             }
+    //         }
+
+    //         // Clear the active providers set
+    //         await redis.del(`request:${requestId}:active_providers`);
+
+    //         return true;
+    //     } catch (error) {
+    //         console.error("Error notifying other providers:", error);
+    //         // Non-critical operation, don't throw
+    //     }
+    // };
+
     const notifyOtherProviders = async (
         requestId: string,
         acceptedProviderId: string,
         allAcceptances: ProviderAcceptance[]
     ) => {
         try {
-            // Get all providers who accepted except the chosen one
-            const otherProviders = allAcceptances
+            // 1. Get all providers who accepted except the chosen one
+            const otherAcceptedProviders = allAcceptances
                 .filter(a => a.providerId !== acceptedProviderId)
                 .map(a => a.providerId);
 
-            if (otherProviders.length === 0) {
-                console.log(`No other providers to notify for request ${requestId}`);
-                return;
+            let notifiedProviders = new Set<string>();
+
+            // 2. Notify all providers who explicitly accepted
+            if (otherAcceptedProviders.length > 0) {
+                console.log(`Notifying ${otherAcceptedProviders.length} other accepting providers for request ${requestId}`);
+
+                const acceptedNotifications = otherAcceptedProviders.map(providerId => {
+                    notifiedProviders.add(providerId);
+                    return notificationService().notifyProvider(
+                        providerId,
+                        'request:unavailable',
+                        requestId
+                    );
+                });
+
+                await Promise.all(acceptedNotifications);
             }
 
-            console.log(`Notifying ${otherProviders.length} other providers that request ${requestId} was assigned to another provider`);
+            // 3. Also notify any other active providers who haven't yet been notified
+            try {
+                const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
 
-            // Send notifications to all other providers who accepted
-            const notificationPromises = otherProviders.map(providerId =>
-                notificationService().notifyProvider(
-                    providerId,
-                    'request:unavailable',    
-                    requestId
-                )
-            );
-
-            await Promise.all(notificationPromises);
-
-            // Also notify any remaining active providers who haven't yet responded
-            const activeProviders = await redis.smembers(`request:${requestId}:active_providers`);
-
-            if (activeProviders && activeProviders.length > 0) {
-                const remainingProviders = activeProviders.filter(pid =>
-                    pid !== acceptedProviderId && !otherProviders.includes(pid)
-                );
-
-                if (remainingProviders.length > 0) {
-                    console.log(`Notifying ${remainingProviders.length} remaining active providers that request ${requestId} is no longer available`);
-
-                    const remainingNotifications = remainingProviders.map(providerId =>
-                        notificationService().notifyProvider(
-                            providerId,
-                            'request:unavailable',
-                            requestId
-                        )
+                if (activeProviders && activeProviders.length > 0) {
+                    const remainingProviders = activeProviders.filter(pid =>
+                        pid !== acceptedProviderId && !notifiedProviders.has(pid)
                     );
 
-                    await Promise.all(remainingNotifications);
+                    if (remainingProviders.length > 0) {
+                        console.log(`Notifying ${remainingProviders.length} other active providers for request ${requestId}`);
+
+                        const activeNotifications = remainingProviders.map(providerId =>
+                            notificationService().notifyProvider(
+                                providerId,
+                                'request:unavailable',
+                                requestId
+                            )
+                        );
+
+                        await Promise.all(activeNotifications);
+                    }
                 }
+            } catch (err) {
+                console.error(`Error notifying remaining active providers for request ${requestId}:`, err);
             }
 
-            // Clear the active providers set
+            // 4. Clear the active providers set
             await redis.del(`request:${requestId}:active_providers`);
 
             return true;
         } catch (error) {
-            console.error("Error notifying other providers:", error);
+            console.error(`Error notifying other providers for request ${requestId}:`, error);
             // Non-critical operation, don't throw
         }
     };
