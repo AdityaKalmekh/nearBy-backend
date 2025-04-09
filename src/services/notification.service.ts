@@ -3,7 +3,7 @@ import { socketServer } from "../main";
 
 export function notificationService() {
     const notifyProvider = async (providerId: string, event: string, data: any) => {
-
+        console.log(`${providerId}, eventName: ${event}, Data: ${data} `);
         if (event === 'request:unavailable') {
             console.log(`${providerId} is unavailable`);
 

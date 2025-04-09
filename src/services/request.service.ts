@@ -762,11 +762,7 @@ const requestService = () => {
                         notificationService().notifyProvider(
                             providerId,
                             'request:unavailable',
-                            {
-                                requestId,
-                                message: 'This request has been assigned to another provider',
-                                status: 'UNAVAILABLE'
-                            }
+                            requestId
                         )
                     );
 
