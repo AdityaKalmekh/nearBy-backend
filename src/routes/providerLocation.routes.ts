@@ -11,11 +11,6 @@ routes.post("/provider/location/start/:providerId",
     asyncHandler(jwtService.authorize([ROLES.PROVIDER])),
     providerLocationController.startTracking);
 
-routes.patch("/provider/location/update/:providerId",
-    asyncHandler(jwtService.authMiddleware),
-    asyncHandler(jwtService.authorize([ROLES.PROVIDER])),
-    providerLocationController.updateLocation);
-
 routes.post("/provider/location/stop/:providerId", 
     asyncHandler(jwtService.authMiddleware),
     asyncHandler(jwtService.authorize([ROLES.PROVIDER])),

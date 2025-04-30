@@ -1,5 +1,7 @@
 import { Server as HTTPServer } from "http";
 import { Server, Socket } from 'socket.io';
+import { isSignificantMovement } from "../utils/significantMovement.utils";
+import { getRedisClient } from "./redis";
 
 // Types for better type safety
 interface SocketUser {
@@ -80,7 +82,7 @@ export function createSocketServer(httpServer: HTTPServer) {
             socket.join(`user:${userId}`);
             connectionStats.userConnections++;
 
-            console.log(`[Socket] User authenticated: ${userId}`);
+            console.log(`[Socket] User authenticated: ${userId}, count:${connectionStats.userConnections} `);
         });
 
         // Provider authentication
@@ -96,7 +98,7 @@ export function createSocketServer(httpServer: HTTPServer) {
             socket.join(`provider:${providerId}`);
             connectionStats.providerConnections++;
 
-            console.log(`[Socket] Provider authenticated: ${providerId}`);
+            console.log(`[Socket] Provider authenticated: ${providerId}, count:${connectionStats.providerConnections}`);
         });
     }
 
@@ -205,6 +207,70 @@ export function createSocketServer(httpServer: HTTPServer) {
                 location,
                 timestamp: Date.now()
             });
+        });
+
+        socket.on('provider:location', async ({
+            providerId,
+            location,
+            source = 'app',
+            accuracy = 0
+        }: {
+            providerId: string;
+            location: { coordinates: [number, number] }; // [longitude, latitude]
+            source?: string;
+            accuracy?: number;
+        }) => {
+            console.log("provider:location event triggred");
+            console.log("ProviderId = ", providerId);
+            console.log("Location = ", location);
+            console.log("Source = ", source);
+            console.log("Accuracy = ", accuracy);
+            
+
+            if (!providerId || !location) return;
+
+            try {
+                const redis = getRedisClient();
+                if (!redis) return;
+
+                // Check if provider is active
+                const isActive = await redis.sismember('active:providers', providerId);
+                console.log(`IsActive value ----------->`, isActive);
+                
+                if (!isActive) {
+                    // Provider not active - ignore location update
+                    return;
+                }
+
+                // Get current coordinates to check if update is needed
+                const currentCoords = await redis.geopos('provider:locations', providerId);
+
+                // Only update if no previous position or significant movement
+                if (!currentCoords || !currentCoords[0]) {
+                    // No previous position, update
+                    await updateProviderLocation(providerId, location, source, accuracy);
+                    console.log(`Added new data to redis`);
+                } else {
+                    const [longitude, latitude] = currentCoords[0];
+
+                    // Check if movement is significant (more than 50 meters)
+                    const isSignificant = isSignificantMovement({
+                        oldLat: parseFloat(latitude),
+                        oldLng: parseFloat(longitude),
+                        newLat: location.coordinates[1],
+                        newLng: location.coordinates[0]
+                    });
+
+                    console.log(`Significant movement detection ------->`, isSignificant);
+                    
+                    if (isSignificant) {
+                        // Update provider location
+                        await updateProviderLocation(providerId, location, source, accuracy);
+                    }
+                }
+            } catch (error) {
+                console.error(`[Socket] Error updating provider location for ${providerId}:`, error);
+            }
         });
     }
 
@@ -351,4 +417,50 @@ export function createSocketServer(httpServer: HTTPServer) {
          */
         getConnectionStats: () => ({ ...connectionStats })
     };
+}
+
+async function updateProviderLocation(
+    providerId: string,
+    location: { coordinates: [number, number]; },
+    source: string,
+    accuracy: number
+) {
+    console.log(`Update provide loation is called`);
+    
+    const redis = getRedisClient();
+    if (!redis) return false;
+
+    try {
+        // Use pipeline for better performance
+        const pipeline = redis.pipeline();
+
+        // Update geo index
+        pipeline.geoadd(
+            'provider:locations',
+            location.coordinates[0],  // longitude
+            location.coordinates[1],  // latitude
+            providerId
+        );
+
+        // Update metadata
+        pipeline.set(
+            `provider:${providerId}:metadata`,
+            JSON.stringify({
+                lastUpdate: Date.now(),
+                source,
+                accuracy
+            })
+        );
+
+        // Refresh TTL
+        pipeline.expire(`provider:${providerId}:metadata`, 7200);
+
+        // Execute pipeline
+        const results = await pipeline.exec();
+
+        return results && !results.some(([err]) => err);
+    } catch (error) {
+        console.error(`Error updating provider location in Redis for ${providerId}:`, error);
+        return false;
+    }
 }

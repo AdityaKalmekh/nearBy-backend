@@ -10,6 +10,7 @@ const initializeService = async () => {
 
 export const providerLocationController = {
     startTracking: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+       
         if (!locationService) {
             await initializeService();
         }
@@ -21,24 +22,6 @@ export const providerLocationController = {
 
         try {
             const response = await locationService.startShift(providerId, { longitude, latitude, accuracy, source });
-            res.status(200).json(response);
-        } catch (error) {
-            next(error);
-        }
-    }),
-
-    updateLocation: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-        if (!locationService) {
-            await initializeService();
-        }
-        const { providerId } = req.params;
-        let { latitude, longitude, accuracy, source } = req.body;
-
-        latitude = parseFloat(latitude);
-        longitude = parseFloat(longitude);
-
-        try {
-            const response = await locationService.updateLocation(providerId, { longitude, latitude, accuracy, source });
             res.status(200).json(response);
         } catch (error) {
             next(error);

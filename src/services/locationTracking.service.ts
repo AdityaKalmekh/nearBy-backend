@@ -5,75 +5,106 @@ import { createAppError } from "../errors/errors";
 import { Provider } from "../models/Provider";
 import { calculateDistance } from "../utils/distanceCal.utils";
 
-const createLocationTrackingService = () => {
-  const redis = getRedisClient();
+interface LocationMetadata {
+  startTime?: number;
+  lastUpdate: number;
+  source: string;
+  accuracy: number;
+}
 
-  type LocationDetails = {
-    longitude: number;
-    latitude: number;
+type LocationDetails = {
+  longitude: number;
+  latitude: number;
+  source: string;
+  accuracy: number;
+}
+
+type LocationData = {
+  longitude: number,
+  latitude: number,
+  timestamp: Date,
+  accuracy: number,
+  updatedAt: Date,
+  source: string
+}
+
+type CurrentLocationData = {
+  currentLocation: {
+    type: string;
+    coordinates: number[];
     source: string;
     accuracy: number;
-  }
+    lastUpdated: Date;
+  };
+  isActive: boolean;
+}
 
-  type LocationData = {
-    longitude: number,
-    latitude: number,
-    timestamp: Date,
-    accuracy: number,
-    updatedAt: Date,
-    source: string
-  }
+const createLocationTrackingService = () => {
+  const redis = getRedisClient();
+  // Local cache for active provider statuses
+  const providerStatusCache = new Map<string, string>();
 
   const initializeProviderLocation = async (providerId: string, location: LocationDetails) => {
-    const locationData = {
-      ...location,
-      timestamp: Date.now(),
-      updatedAt: new Date()
-    };
 
     if (!redis) {
       throw new Error('Redis client is not initialized');
     }
 
-    const result = await redis.multi()
-      .hset(
-        `provider:${providerId}`,
-        {
-          'location': JSON.stringify(locationData),
-          'lastUpdate': Date.now(),
-          'startTime': Date.now(),
-          'status': 'active'
-        }
-      )
-      .geoadd(
+    try {
+      const pipeline = redis.pipeline();
+
+      // Add to active providers set with TTL
+      pipeline.sadd('active:providers', providerId);
+
+      // Store start time and status in separate key
+      pipeline.set(`provider:${providerId}:metadata`, JSON.stringify({
+        startTime: Date.now(),
+        lastUpdate: Date.now(),
+        source: location.source,
+        accuracy: location.accuracy
+      }));
+
+      // Add to geo index
+      pipeline.geoadd(
         'provider:locations',
         location.longitude,
         location.latitude,
         providerId
-      )
-      .exec();
+      );
 
-    if (!result) {
-      throw createAppError(
-        `Enable to set data in redis for id ${providerId}`
-      )
+      // Set expiry for all keys
+      pipeline.expire(`provider:${providerId}:metadata`, 7200);
+      const results = await pipeline.exec();
+      // Update local cache
+      providerStatusCache.set(providerId, 'active');
+      return results && !results.some(([err]) => err);
+
+    } catch (error: any) {
+      console.error(`Redis error in initializeProviderLocation for provider ${providerId}:`, error);
+      throw createAppError(`Failed to initialize location tracking: ${error.message}`);
     }
-
-    const isSuccessful = result.every(([error, value]) =>
-      error === null && Number(value) > 0
-    );
-
-    return isSuccessful;
   }
 
   const startShift = async (providerId: string, location: LocationDetails) => {
+    if (!redis) {
+      throw createAppError('Redis client is not initialized')
+    }
+
     try {
-      // Check if provider already has an active session
-      const MAX_ALLOWED_DISTANCE_KM = 10;
-      const existingSession = await redis?.hget(`provider:${providerId}`, 'status');
-      if (existingSession === 'active') {
+      // Check if provider is already active (check cache first, then Redis)
+      const cachedStatus = providerStatusCache.get(providerId);
+
+      if (!cachedStatus) {
+        const isActive = await redis.sismember('active:providers', providerId);
+        if (isActive) {
+          providerStatusCache.set(providerId, 'active');
+          throw createAppError("Provider already has an active session");
+        }
+      } else if (cachedStatus === 'active') {
         throw createAppError("Provider already has an active session");
       }
+
+      const MAX_ALLOWED_DISTANCE_KM = 10;
 
       // Fetch provider's base location from DB
       const providerBaseLocation = await Provider.findById(providerId)
@@ -91,7 +122,7 @@ const createLocationTrackingService = () => {
 
       const distance = await calculateDistance(baseLocation, location);
 
-      if (distance > 10) {
+      if (distance > MAX_ALLOWED_DISTANCE_KM) {
         throw createAppError(
           `Current location is outside the allowed radius of ${MAX_ALLOWED_DISTANCE_KM}km from base location. Distance: ${distance.toFixed(2)}km`
         );
@@ -100,130 +131,107 @@ const createLocationTrackingService = () => {
       const initializeAck = await initializeProviderLocation(providerId, location);
       if (initializeAck) {
         return { success: true, message: "Location tracking started" }
+      } else {
+        throw createAppError("Failed to initialize location tracking");
       }
     } catch (error) {
-      throw error;
-    }
-  };
-
-  const updateProviderLocation = async (providerId: string, location: LocationDetails) => {
-    const locationData = {
-      ...location,
-      timestamp: Date.now(),
-      updatedAt: new Date()
-    };
-
-    // Only update location-related fields  
-    return redis?.multi()
-      .hset(
-        `provider:${providerId}`,
-        'location', JSON.stringify(locationData),
-        'lastUpdate', Date.now()
-      )
-      .geoadd(
-        'provider:locations',
-        location.longitude,
-        location.latitude,
-        providerId
-      )
-      .exec();
-  };
-
-  const updateLocation = async (providerId: string, location: LocationDetails) => {
-    try {
-      // Verify provider has an active session
-      const status = await redis?.hget(`provider:${providerId}`, 'status');
-      if (status !== 'active') {
-        throw createAppError(
-          'No active session found'
-        );
-      }
-
-      await updateProviderLocation(providerId, location);
-      return { success: true, message: 'Location updated successfully' };
-    } catch (error) {
+      providerStatusCache.delete(providerId);
       throw error;
     }
   };
 
   const endShift = async (providerId: string) => {
     try {
-      
       if (!redis) {
-        // throw new Error('Redis client not initialized');
-        throw createAppError(
-          'Redis client not initialized'
-        )
+        throw createAppError('Redis client not initialized');
       }
-      // Verify there's an active session
-      const status = await redis.hget(`provider:${providerId}`, 'status');
-
-      if (status !== 'active') {
-        throw createAppError(
-          'No active session found'
-        )
+      
+      // Check if provider is active
+      let isActive: number | boolean;
+      if (providerStatusCache.has(providerId)) {
+        isActive = providerStatusCache.get(providerId) === 'active';
+      } else {
+        isActive = await redis.sismember('active:providers', providerId);
       }
-
-      const locationData = await redis.hget(`provider:${providerId}`, 'location');
-
-      if (!locationData) {
-        throw createAppError(
-          'No location data found'
-        )
+   
+      if (!isActive) {
+        throw createAppError('No active session found');
       }
 
-      const parseLocationData: LocationData = JSON.parse(locationData);
-      const currentLocationData = {
-        currentLocation: {
-          type: "Point",
-          coordinates: [
-            Number(parseLocationData.longitude),
-            Number(parseLocationData.latitude)
-          ],
-          source: parseLocationData.source,
-          accuracy: parseLocationData.accuracy,
-          lastUpdated: new Date(parseLocationData.updatedAt)
-        },
-        isActive: false
+      // Get current coordinates and metadata
+      const [currentCoords, metadata] = await Promise.all([
+        redis.geopos('provider:locations', providerId),
+        redis.get(`provider:${providerId}:metadata`)
+      ]);
+
+      if (!currentCoords || !currentCoords[0]) {
+        throw createAppError('No location data found');
       }
 
-      // Update MongoDB
-      const updateResult = await ProviderLocation.findOneAndUpdate(
-        { providerId: new ObjectId(providerId) },
-        { $set: currentLocationData },
-        { new: true }
-      );
+      try {
+        const [longitude, latitude] = currentCoords[0];
+        const metadataObj: LocationMetadata = metadata ? JSON.parse(metadata) : {
+          lastUpdate: Date.now(),
+          source: 'unknown',
+          accuracy: 0
+        };
 
-      if (!updateResult) {
-        throw createAppError(
-          'Failed to update provider location in MongoDB'
-        )
+        // Prepare data for MongoDB
+        const currentLocationData: CurrentLocationData = {
+          currentLocation: {
+            type: "Point",
+            coordinates: [
+              Number(longitude),
+              Number(latitude)
+            ],
+            source: metadataObj.source || 'unknown',
+            accuracy: metadataObj.accuracy || 0,
+            lastUpdated: new Date(metadataObj.lastUpdate || Date.now())
+          },
+          isActive: false
+        };
+
+        // Update MongoDB
+        const updatePromise = ProviderLocation.findOneAndUpdate(
+          { providerId: new ObjectId(providerId) },
+          { $set: currentLocationData },
+          { new: true }
+        );
+
+        // Clean Redis data
+        const cleanupPipeline = redis.pipeline();
+        cleanupPipeline.srem('active:providers', providerId);
+        cleanupPipeline.zrem('provider:locations', providerId);
+        cleanupPipeline.del(`provider:${providerId}:metadata`);
+
+        const [mongoResult, redisResult] = await Promise.all([
+          updatePromise,
+          cleanupPipeline.exec()
+        ]);
+
+        if (!mongoResult) {
+          console.error(`Failed to update provider location in MongoDB for provider ${providerId}`);
+        }
+
+        // Clean local cache
+        providerStatusCache.delete(providerId);
+
+        return {
+          success: true,
+          message: 'Shift ended successfully'
+        };
+      } catch (error) {
+        console.error(`Error processing end shift for provider ${providerId}:`, error);
+        throw createAppError(`Failed to process end shift: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-
-      // Clean Redis data atomically
-      const redisCleanup = await redis.multi()
-        .del(`provider:${providerId}`)
-        .zrem('provider:locations', providerId)
-        .exec();
-
-      if (!redisCleanup?.every(([err]) => !err)) {
-        throw createAppError(
-          'Failed to cleanup Redis data'
-        )
-      }
-
-      return {
-        success: true,
-        message: 'Shift ended successfully'
-      };
     } catch (error) {
+      providerStatusCache.delete(providerId);
       throw error;
     }
-  };
+  }
 
   return {
     startShift,
-    updateLocation,
     endShift,
   };
 }
