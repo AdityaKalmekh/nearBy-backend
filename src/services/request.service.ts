@@ -31,7 +31,7 @@ const requestService = () => {
         }
 
         try {
-            const radiusInMeters = 10 * 1000;
+            const radiusInMeters = 5 * 1000;
 
             // Search for providers within radius
             const nearbyProviders = await redis.georadius(
