@@ -267,14 +267,13 @@ export const authService = {
         let status: string | null = null;
         if (role === 0 && !isNewUser) {
             if (user.roles.includes(0) && !provider) {
-                status = user.status;
-            } else if (!user.roles.includes(0)) {
-                status = user.status;
+                status = UserStatus.SERVICE_DETAILS_PENDING;
             }
         } else if (role === 1 && user.status === UserStatus.SERVICE_DETAILS_PENDING) {
             status = UserStatus.ACTIVE;
-        }
+        }   
 
+        console.log(`User current Status `, status);
         // Generate token
         const responseToken = await jwtService.generateTokens(user._id, user.status, role);
         const { encryptedUId, encryptionKey } = encryptUserId(user._id.toString());

@@ -18,7 +18,7 @@ export const requestController = {
 
         try {
             const { latitude, longitude } = req.body;
-
+            
             // Input validation
             if (!latitude || !longitude) {
                 return res.status(400).json({
@@ -46,8 +46,8 @@ export const requestController = {
         }
 
         try {
-            const { latitude, longitude, userId } = req.body;
-
+            const { latitude, longitude, userId } = req.body; 
+           
             if (!userId) {
                 return res.status(400).json({
                     error: 'userid is not define'
@@ -60,6 +60,13 @@ export const requestController = {
                 });
             }
 
+            // if (!services || !Array.isArray(services) || services.length === 0) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         error: 'At least one service is required'
+            //     });
+            // }
+            
             const createRequestResponse = await requestservice.createNewServiceRequest(req.body);
             const providersAvailability = await requestservice.startProviderSearch(createRequestResponse);
             res.json({ success: providersAvailability });
@@ -67,11 +74,10 @@ export const requestController = {
         } catch (error) {
             next(error);
         }
-    }),
+    }), 
 
     providerResponse: asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
         const { requestId, providerId, accepted, userId } = req.body;
-
         try {
             const result = await requestservice.handleProviderResponse(
                 requestId,
