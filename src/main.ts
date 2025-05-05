@@ -18,9 +18,20 @@ import RequestRoute from "./routes/request.routes";
 
 // Error handler middleware
 import { errorHandler } from "./middlewares/error.middleware";
+import rateLimitMiddleware from "express-rate-limit";
 
 const app = express();
 const httpServer = createServer(app); // create HTTP server
+
+// Define rate limit 
+const limiter = rateLimitMiddleware({
+    windowMs: 2 * 60 * 1000,
+    max: 2,
+    message: {
+        status: 429,
+        message: 'Too many requests from this IP, please try again after 15 minutes.'
+    }
+})
 
 // Initialize Socket.io
 export const socketServer = createSocketServer(httpServer);
@@ -47,6 +58,7 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(limiter);
 
 // Initialize databases
 async function initializeDatabases() {
