@@ -25,11 +25,11 @@ const httpServer = createServer(app); // create HTTP server
 
 // Define rate limit 
 const limiter = rateLimitMiddleware({
-    windowMs: 2 * 60 * 1000,
-    max: 2,
+    windowMs: 60 * 60 * 1000,
+    max: 20,
     message: {
         status: 429,
-        message: 'Too many requests from this IP, please try again after 15 minutes.'
+        message: 'Try After Some time.'
     }
 })
 
