@@ -15,53 +15,57 @@ export const authController = {
     async verifyOTP(req: Request<{}, {}, VerifyOTPParams>, res: Response, next: NextFunction): Promise<void> {
         try {
             const result = await authService.verifyOTP(req.body);
-
-            const {
-                cookieConfig,
-                refreshCookieConfig,
-                userIdCookieConfig
-            } = req.app.locals.config || {
-                cookieConfig: { 
-                    httpOnly: true, 
-                    secure: process.env.NODE_ENV === 'production', 
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 60 * 60 * 1000 },
-                refreshCookieConfig: { 
-                    httpOnly: true, 
-                    secure: process.env.NODE_ENV === 'production', 
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 30 * 24 * 60 * 60 },
-                userIdCookieConfig: { 
-                    httpOnly: true, 
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
-                    maxAge: 30 * 24 * 60 * 60 }
-            };
-
-            // Set cookies if verification was successful
-            if (result.success && result.authToken && result.refreshToken && result.session_id) {
-                // Set auth cookies
-                res.cookie('auth_token', result.authToken, cookieConfig);
-                res.cookie('refresh_token', result.refreshToken, refreshCookieConfig);
-                res.cookie('session_id', result.session_id, {
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
-                });
-
-                // Set user identity cookies
-                if (result.encryptedUId && result.encryptionKey) {
-                    res.cookie("uid", result.encryptedUId, userIdCookieConfig);
-                    res.cookie("diukey", result.encryptionKey, userIdCookieConfig);
-                }
-
-                // Set provider identity cookies if applicable
-                if (result.encryptedPId && result.encryptionPKey) {
-                    res.cookie('puid', result.encryptedPId, userIdCookieConfig);
-                    res.cookie('puidkey', result.encryptionPKey, userIdCookieConfig);
+            const isMobileRequest = req.headers['x-client-type'] === 'mobile';
+            
+            if (isMobileRequest) {
+                res.status(result.code).json(result);
+            } else {
+                const {
+                    cookieConfig,
+                    refreshCookieConfig,
+                    userIdCookieConfig
+                } = req.app.locals.config || {
+                    cookieConfig: { 
+                        httpOnly: true, 
+                        secure: process.env.NODE_ENV === 'production', 
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                        maxAge: 60 * 60 * 1000 },
+                    refreshCookieConfig: { 
+                        httpOnly: true, 
+                        secure: process.env.NODE_ENV === 'production', 
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                        maxAge: 30 * 24 * 60 * 60 },
+                    userIdCookieConfig: { 
+                        httpOnly: true, 
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+                        maxAge: 30 * 24 * 60 * 60 }
+                };
+    
+                // Set cookies if verification was successful
+                if (result.success && result.authToken && result.refreshToken && result.session_id) {
+                    // Set auth cookies
+                    res.cookie('auth_token', result.authToken, cookieConfig);
+                    res.cookie('refresh_token', result.refreshToken, refreshCookieConfig);
+                    res.cookie('session_id', result.session_id, {
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+                    });
+    
+                    // Set user identity cookies
+                    if (result.encryptedUId && result.encryptionKey) {
+                        res.cookie("uid", result.encryptedUId, userIdCookieConfig);
+                        res.cookie("diukey", result.encryptionKey, userIdCookieConfig);
+                    }
+    
+                    // Set provider identity cookies if applicable
+                    if (result.encryptedPId && result.encryptionPKey) {
+                        res.cookie('puid', result.encryptedPId, userIdCookieConfig);
+                        res.cookie('puidkey', result.encryptionPKey, userIdCookieConfig);
+                    }
                 }
             }
 
-            // Send response
             res.status(result.code).json(result);
         } catch (error) {
             next(error);
@@ -104,7 +108,7 @@ export const authController = {
             const { firstName, lastName } = req.body;
             const userId = req.user?.userId;
             const role = req.user?.role;
-
+            
             // Validate required fields from request
             if (!userId || role === undefined) {
                 res.status(401).json({

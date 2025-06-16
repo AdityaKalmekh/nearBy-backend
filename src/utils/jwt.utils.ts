@@ -196,44 +196,115 @@ const getSessionFromDB = async (sessionId: string) => {
 
 const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-        // const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
-        const authToken = req.cookies.auth_token;
-        const refreshToken = req.cookies.refresh_token;
-        const sessionId = req.cookies.session_id;
+        // Check if request is from mobile device
+        const isMobileRequest = req.headers['x-client-type'] === 'mobile';
 
-        if (!refreshToken || !sessionId) {
-            throw createAppError("Missing required tokens");
+        // const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
+        const authHeader = req.headers.authorization;  
+        let authToken: string | null = null;
+        let refreshToken: string | null = null;
+        let sessionId: string | null = null;
+
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            authToken = authHeader.substring(7);
+            refreshToken = req.headers['x-refresh-token'] as string;
+            sessionId = req.headers['x-session-id'] as string;
         }
 
+        if (!isMobileRequest) {
+            authToken = req.cookies.auth_token;
+            refreshToken = req.cookies.refresh_token;
+            sessionId = req.cookies.session_id;
+        }
+
+        if (!sessionId) {
+            throw createAppError("Missing session ID");
+        }
+
+        // Validate session
         const session = await getSessionFromDB(sessionId);
         if (!session) {
             throw createAppError("Invalid session");
         }
 
-        // If no auth token exists, directly generate new one
-        if (!authToken) {
-            const decoded = await newAuthToken(refreshToken, res);
-            req.user = decoded;
-            return next();
-        }
+        // If no auth token but we have refresh token, generate new token
+        if (!authToken && refreshToken) {
+            try {
+                const { newAuthToken, decoded } = await refreshAuthToken(refreshToken);
 
-        try {
-            const decoded = await verifyAuthToken(authToken);
-            req.user = decoded;
-            return next();
-        } catch (tokenError) {
-            if (tokenError instanceof jwt.TokenExpiredError) {
-                const decoded = await newAuthToken(refreshToken, res);
+                if (!newAuthToken || !decoded) {
+                    throw createAppError("Failed to generate new auth token");
+                }
+
+                if (isMobileRequest) {
+                    res.setHeader('X-New-Auth-Token', newAuthToken);
+                } else {
+                    res.cookie('auth_token', newAuthToken, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+                        maxAge: 60 * 60 * 1000 // 1 hour
+                    });
+                }
+
                 req.user = decoded;
                 return next();
+            } catch (error) {
+                throw createAppError('Token refresh failed');
             }
-            throw tokenError;
         }
-    } catch (error: any) {
-        // Clear cookies on authentication failure
-        res.clearCookie('auth_token');
-        res.clearCookie('refresh_token');
-        res.clearCookie('session_id');
+
+        if (authToken) {
+            try {
+                const decoded = await verifyAuthToken(authToken);
+                req.user = decoded;
+                return next();
+            } catch (tokenError) {
+                if (tokenError instanceof jwt.TokenExpiredError) {
+                    if (refreshToken) {
+                        try {
+                            const { newAuthToken: refreshedToken, decoded } = await refreshAuthToken(refreshToken);
+
+                            if (!refreshedToken || !decoded) {
+                                throw createAppError("Failed to refresh expired token");
+                            }
+
+                             if (isMobileRequest) {
+                                // Mobile request - send new auth token in header
+                                res.setHeader('X-New-Auth-Token', refreshedToken);
+                            } else {
+                                // Web request - set cookie  
+                                res.cookie('auth_token', refreshedToken, {
+                                    httpOnly: true,
+                                    secure: process.env.NODE_ENV === 'production',
+                                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+                                    maxAge: 60 * 60 * 1000 // 1 hour
+                                });
+                            }
+
+                            req.user = decoded;
+                            return next();
+                        } catch (refreshError) {
+                            throw createAppError("Token refresh failed");
+                        }
+                    } else {
+                        throw createAppError("Token expired and no refresh token available");
+                    }
+                }
+                throw tokenError;
+            }
+        }
+
+        throw createAppError("Authentication credentials required");
+    }
+    catch (error: any) {
+         // Clear cookies on authentication failure (web only)
+        if (!req.headers['x-session-id']) {
+            res.clearCookie('auth_token');
+            res.clearCookie('refresh_token');
+            res.clearCookie('session_id');
+        }
+        
         return res.status(401).json({
             success: false,
             message: error.message || 'Authentication failed'
