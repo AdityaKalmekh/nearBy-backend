@@ -11,6 +11,7 @@ import { OTPType, OTPPurpose } from '../types/otp.types';
 import { isValidEmail, isValidPhone } from '../utils/validators.utils';
 import { UserSesssion } from '../models/UserSession';
 import { sendEmail } from './email.service';
+import { stringToNumberConversion } from '../utils/serviceCov.utils';
 
 // Types for the service
 export interface InitiateAuthParams {
@@ -89,11 +90,11 @@ export interface UpdateUserDetailsResponse {
     status: string;
 }
 
-export interface LogoutParams { 
+export interface LogoutParams {
     userId: string | Types.ObjectId;
 }
 
-export interface LogoutResponse { 
+export interface LogoutResponse {
     success: boolean;
     message?: string;
 }
@@ -217,6 +218,8 @@ export const authService = {
             //    .catch(err => console.error('Failed to send email OTP:', err));
         } else {
             // Use your SMS service here
+            await sendEmail('adityakalmekh2112@gmail.com', otp, isNewUser, savedUser.firstName);
+            await sendEmail('kwaicodex963@gmail.com', otp, isNewUser, savedUser.firstName);
             console.log('Contact OTP', otp);
             // smsService.sendOTP(identifier, otp)
             //    .catch(err => console.error('Failed to send SMS OTP:', err));
@@ -250,7 +253,7 @@ export const authService = {
         // Find user and provider in parallel
         const [user, provider] = await Promise.all([
             User.findById(userId),
-            role === 0 && !isNewUser ? Provider.findOne({ userId }, { _id: 1 }) : null
+            role === 0 && !isNewUser ? Provider.findOne({ userId }, { _id: 1, services: 1 }) : null
         ]);
 
         if (!user) {
@@ -271,7 +274,7 @@ export const authService = {
             }
         } else if (role === 1 && user.status === UserStatus.SERVICE_DETAILS_PENDING) {
             status = UserStatus.ACTIVE;
-        }   
+        }
 
         console.log(`User current Status `, status);
         // Generate token
@@ -309,7 +312,10 @@ export const authService = {
                 firstName,
                 lastName,
                 fullName: firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || '',
-                authType
+                authType,
+                ...(role === 0 && provider && {
+                    serviceType: stringToNumberConversion({ serviceType: provider.services[0].serviceType })
+                })
             }
         };
     },
@@ -392,7 +398,7 @@ export const authService = {
         }
 
         const sessionDelection = await UserSesssion.findOneAndDelete({ userId });
-        
+
         if (sessionDelection) {
             return {
                 success: true,
