@@ -106,7 +106,10 @@ async function initializeDatabases() {
 }
 
 // API Routers
-app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation, RequestRoute);
+// app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation, RequestRoute);
+app.get("/", (req: Request, res: Response) => {
+  res.status(200).send("Backend is running ✅");
+});
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {
@@ -115,10 +118,6 @@ app.use('*', (req: Request, res: Response) => {
 
 // Error handler
 app.use(errorHandler);
-
-app.get("/api/health", (req, res) => {
-  res.status(200).send("Backend is running ✅");
-});
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
