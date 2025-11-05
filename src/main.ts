@@ -106,7 +106,7 @@ async function initializeDatabases() {
 }
 
 // API Routers
-// app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation, RequestRoute);
+app.use("/nearBy", AuthRoute, ProviderRoute, ProviderLocation, RequestRoute);
 app.get("/", (req: Request, res: Response) => {
   res.status(200).send("Backend is running ✅");
 });
