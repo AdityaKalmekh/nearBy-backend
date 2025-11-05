@@ -36,9 +36,30 @@ const limiter = rateLimitMiddleware({
 // Initialize Socket.io
 export const socketServer = createSocketServer(httpServer);
 
+const allowedOrigins = [
+    'http://localhost:3000',       // Web frontend
+    // 'http://localhost:19000',      // Expo development
+    // 'http://localhost:19001',      // Expo development alternate
+    // 'http://localhost:19002',      // Expo dev tools
+    // 'exp://localhost:19000',       // Expo on local device
+    // 'exp://192.168.*.*:19000',     // Common Expo LAN addresses
+    // 'exp://10.0.*.*:19000',        // More LAN patterns
+    // 'https://exp.host',            // Expo hosting
+    // Add any production domains if needed
+];
+
 // Middleware
+app.set("trust proxy", 1);
 app.use(cors({
-    origin: `${process.env.CORS_ORIGIN}`,
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
