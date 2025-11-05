@@ -116,6 +116,10 @@ app.use('*', (req: Request, res: Response) => {
 // Error handler
 app.use(errorHandler);
 
+app.get("/api/health", (req, res) => {
+  res.status(200).send("Backend is running ✅");
+});
+
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received. Shutting down gracefully...');
